@@ -1,0 +1,24 @@
+{
+  "corte": "2017-01-02",
+  "evento": "modelo",
+  "modelos": [
+    {
+      "costo_total": 5793964.299445534,
+      "fill_rate": 0.9000626125,
+      "modelo_id": "baseline-2017-01-02-d1a22558",
+      "motivos": "champion inicial: no había champion vigente",
+      "promovido": true,
+      "tipo": "baseline",
+      "wape": 0.2119212827
+    },
+    {
+      "costo_total": 4807421.610485554,
+      "fill_rate": 0.9221730199,
+      "modelo_id": "lgbm-2017-01-02-d1a22558",
+      "motivos": "cumple: el costo total baja 17.0% (se exige al menos 3%) | cumple: el WAPE cambia -17.6% (se tolera hasta +1%) | cumple: cobertura P10-P90 0.769 (rango [0.7, 0.9]) | cumple: ninguna familia grande empeora su costo de forma material | cumple: checks técnicos sin problemas",
+      "promovido": true,
+      "tipo": "lgbm",
+      "wape": 0.1746198482
+    }
+  ]
+}
