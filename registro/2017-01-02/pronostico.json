@@ -1,0 +1,23 @@
+{
+  "corte": "2017-01-02",
+  "evento": "pronostico",
+  "manifiestos": {
+    "rev=1": {
+      "advertencias": [],
+      "calidad": "ok",
+      "corte": "2017-01-02",
+      "filas_pronostico": 24486,
+      "git_commit": "fd25eca4f5ce5076a108573e4896020b0c8c3174",
+      "huella_entradas": "12f176d86afc1839043228de7f1c80b84e49bbd783063425692896f734776371",
+      "modelo_id": "lgbm-2017-01-02-d1a22558",
+      "revision": 1,
+      "series": 1749,
+      "sha256_archivos": {
+        "pedido.parquet": "80a6203036750794d9bd4f5a994a0d67929a68e27649d1ae3917129497de8dfc",
+        "pronostico.parquet": "e7544f264c40aac923ca2fcecf5dd12af7628bd78dae246d20bcde85a55465fc"
+      },
+      "sha256_business": "ffa12888d3f8940293537f2325c891a4c3c9b6f0c2835a062d989257d22070ff",
+      "sha256_model": "ad30fdfe31c917e9a34c22d0257e440f2c8f1f4c0fbc3f2c6af9381cea9484e8"
+    }
+  }
+}
