@@ -1,0 +1,64 @@
+{
+  "alerta": {
+    "alerta": false,
+    "cortes_en_ventana": [
+      "2017-01-02",
+      "2017-01-09",
+      "2017-01-16"
+    ],
+    "estado": "insuficiente",
+    "mensaje": "menos de 4 cortes con real suficiente: sin alerta",
+    "modelo_referencia": null,
+    "umbral_degradacion": 0.2,
+    "ventana_cortes": 4,
+    "wape_movil": null,
+    "wape_referencia": null
+  },
+  "corte": "2017-01-23",
+  "corte_evaluacion": "2017-01-23",
+  "cortes": [
+    {
+      "cobertura_p10_p90": 0.60361,
+      "corte": "2017-01-02",
+      "costo_estado": "completo",
+      "costo_total": 1524326.45,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.217161
+    },
+    {
+      "cobertura_p10_p90": 0.718084,
+      "corte": "2017-01-09",
+      "costo_estado": "completo",
+      "costo_total": 440486.57,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.141326
+    },
+    {
+      "cobertura_p10_p90": 0.724986,
+      "corte": "2017-01-16",
+      "costo_estado": "completo",
+      "costo_total": 387661.59,
+      "dias_con_real": 7,
+      "estado": "parcial",
+      "revision": 1,
+      "wape": 0.133141
+    },
+    {
+      "cobertura_p10_p90": null,
+      "corte": "2017-01-23",
+      "costo_estado": "pendiente",
+      "costo_total": null,
+      "dias_con_real": 0,
+      "estado": "sin_datos",
+      "revision": 1,
+      "wape": null
+    }
+  ],
+  "evento": "seguimiento",
+  "publicaciones": 4,
+  "revisiones": []
+}
