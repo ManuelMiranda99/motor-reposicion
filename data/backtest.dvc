@@ -1,6 +1,6 @@
 outs:
-- md5: 80190bb24a4bf6e0c8711df90ad896c3.dir
-  size: 37891520
-  nfiles: 8
+- md5: 0aa3d37336db79e61644bbbf64726f10.dir
+  size: 48078846
+  nfiles: 10
   hash: md5
   path: backtest
