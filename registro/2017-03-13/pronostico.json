@@ -1,0 +1,25 @@
+{
+  "corte": "2017-03-13",
+  "evento": "pronostico",
+  "manifiestos": {
+    "rev=1": {
+      "advertencias": [
+        "ventas: faltan 1 fecha(s) en la ventana (2017-03-09)"
+      ],
+      "calidad": "degradada",
+      "corte": "2017-03-13",
+      "filas_pronostico": 24486,
+      "git_commit": "fd25eca4f5ce5076a108573e4896020b0c8c3174",
+      "huella_entradas": "e5839b0ad10cedbed7e990cc815e5034732a746b1e811553ed6042c60f30be12",
+      "modelo_id": "lgbm-2017-01-02-d1a22558",
+      "revision": 1,
+      "series": 1749,
+      "sha256_archivos": {
+        "pedido.parquet": "4d2c0fed82d94af8f2e575fc8a200c6079d4b57820abe46c8eeb4bb1f609196f",
+        "pronostico.parquet": "5ee7cbee6789a4786336e92527cff007a0e4daf6bffea977eaa2b6a0074f6c0b"
+      },
+      "sha256_business": "ffa12888d3f8940293537f2325c891a4c3c9b6f0c2835a062d989257d22070ff",
+      "sha256_model": "ad30fdfe31c917e9a34c22d0257e440f2c8f1f4c0fbc3f2c6af9381cea9484e8"
+    }
+  }
+}
