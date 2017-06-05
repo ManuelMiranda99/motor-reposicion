@@ -1,0 +1,15 @@
+{
+  "corte": "2017-06-05",
+  "evento": "modelo",
+  "modelos": [
+    {
+      "costo_total": 3273292.2702716826,
+      "fill_rate": 0.9593002161,
+      "modelo_id": "lgbm-2017-06-05-5f4243fe",
+      "motivos": "NO cumple: el costo total baja 0.0% (se exige al menos 3%) | cumple: el WAPE cambia +0.0% (se tolera hasta +1%) | cumple: cobertura P10-P90 0.780 (rango [0.7, 0.9]) | cumple: ninguna familia grande empeora su costo de forma material | cumple: checks técnicos sin problemas",
+      "promovido": false,
+      "tipo": "lgbm",
+      "wape": 0.1400126024
+    }
+  ]
+}
