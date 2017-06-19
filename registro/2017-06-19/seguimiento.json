@@ -1,0 +1,310 @@
+{
+  "alerta": {
+    "alerta": false,
+    "cortes_en_ventana": [
+      "2017-05-22",
+      "2017-05-29",
+      "2017-06-05",
+      "2017-06-12"
+    ],
+    "estado": "ok",
+    "exceso_relativo": -0.233561,
+    "mensaje": "WAPE móvil 0.1338 vs backtest 0.1746 (-23.4%): dentro del umbral de 20%",
+    "modelo_referencia": "lgbm-2017-01-02-d1a22558",
+    "umbral_degradacion": 0.2,
+    "ventana_cortes": 4,
+    "wape_movil": 0.133835,
+    "wape_referencia": 0.17462
+  },
+  "corte": "2017-06-19",
+  "corte_evaluacion": "2017-06-19",
+  "cortes": [
+    {
+      "cobertura_p10_p90": 0.60361,
+      "corte": "2017-01-02",
+      "costo_estado": "completo",
+      "costo_total": 1524326.45,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.217161
+    },
+    {
+      "cobertura_p10_p90": 0.718084,
+      "corte": "2017-01-09",
+      "costo_estado": "completo",
+      "costo_total": 440486.57,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.141326
+    },
+    {
+      "cobertura_p10_p90": 0.733644,
+      "corte": "2017-01-16",
+      "costo_estado": "completo",
+      "costo_total": 387661.59,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.131447
+    },
+    {
+      "cobertura_p10_p90": 0.736666,
+      "corte": "2017-01-23",
+      "costo_estado": "completo",
+      "costo_total": 301972.89,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.133394
+    },
+    {
+      "cobertura_p10_p90": 0.759291,
+      "corte": "2017-01-30",
+      "costo_estado": "completo",
+      "costo_total": 457988.99,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.129959
+    },
+    {
+      "cobertura_p10_p90": 0.761537,
+      "corte": "2017-02-06",
+      "costo_estado": "completo",
+      "costo_total": 279913.2,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.116262
+    },
+    {
+      "cobertura_p10_p90": 0.761496,
+      "corte": "2017-02-06",
+      "costo_estado": "completo",
+      "costo_total": 278878.28,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 2,
+      "wape": 0.116297
+    },
+    {
+      "cobertura_p10_p90": 0.743404,
+      "corte": "2017-02-13",
+      "costo_estado": "completo",
+      "costo_total": 285933.29,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.148349
+    },
+    {
+      "cobertura_p10_p90": 0.713346,
+      "corte": "2017-02-20",
+      "costo_estado": "completo",
+      "costo_total": 429938.4,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.187786
+    },
+    {
+      "cobertura_p10_p90": 0.719881,
+      "corte": "2017-02-27",
+      "costo_estado": "completo",
+      "costo_total": 989108.03,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.181097
+    },
+    {
+      "cobertura_p10_p90": 0.755411,
+      "corte": "2017-03-06",
+      "costo_estado": "completo",
+      "costo_total": 471416.65,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.135127
+    },
+    {
+      "cobertura_p10_p90": 0.764478,
+      "corte": "2017-03-13",
+      "costo_estado": "completo",
+      "costo_total": 476756.26,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.13182
+    },
+    {
+      "cobertura_p10_p90": 0.764845,
+      "corte": "2017-03-13",
+      "costo_estado": "completo",
+      "costo_total": 481124.72,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 2,
+      "wape": 0.131984
+    },
+    {
+      "cobertura_p10_p90": 0.736584,
+      "corte": "2017-03-20",
+      "costo_estado": "completo",
+      "costo_total": 465285.76,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.152924
+    },
+    {
+      "cobertura_p10_p90": 0.752593,
+      "corte": "2017-03-27",
+      "costo_estado": "completo",
+      "costo_total": 509012.94,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.150034
+    },
+    {
+      "cobertura_p10_p90": 0.767745,
+      "corte": "2017-04-03",
+      "costo_estado": "completo",
+      "costo_total": 363481.73,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.13927
+    },
+    {
+      "cobertura_p10_p90": 0.769542,
+      "corte": "2017-04-10",
+      "costo_estado": "completo",
+      "costo_total": 378907.14,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.13462
+    },
+    {
+      "cobertura_p10_p90": 0.774812,
+      "corte": "2017-04-17",
+      "costo_estado": "completo",
+      "costo_total": 464566.88,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.144386
+    },
+    {
+      "cobertura_p10_p90": 0.741703,
+      "corte": "2017-04-24",
+      "costo_estado": "completo",
+      "costo_total": 475236.56,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.167685
+    },
+    {
+      "cobertura_p10_p90": 0.746633,
+      "corte": "2017-05-01",
+      "costo_estado": "completo",
+      "costo_total": 683988.99,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.156855
+    },
+    {
+      "cobertura_p10_p90": 0.772767,
+      "corte": "2017-05-08",
+      "costo_estado": "completo",
+      "costo_total": 380387.72,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.132257
+    },
+    {
+      "cobertura_p10_p90": 0.772767,
+      "corte": "2017-05-08",
+      "costo_estado": "completo",
+      "costo_total": 380387.72,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 2,
+      "wape": 0.132257
+    },
+    {
+      "cobertura_p10_p90": 0.780263,
+      "corte": "2017-05-15",
+      "costo_estado": "completo",
+      "costo_total": 435448.47,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.135779
+    },
+    {
+      "cobertura_p10_p90": 0.788761,
+      "corte": "2017-05-22",
+      "costo_estado": "completo",
+      "costo_total": 314672.27,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.134318
+    },
+    {
+      "cobertura_p10_p90": 0.787518,
+      "corte": "2017-05-29",
+      "costo_estado": "completo",
+      "costo_total": 400080.98,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.137783
+    },
+    {
+      "cobertura_p10_p90": 0.765873,
+      "corte": "2017-06-05",
+      "costo_estado": "completo",
+      "costo_total": 455612.55,
+      "dias_con_real": 14,
+      "estado": "completo",
+      "revision": 1,
+      "wape": 0.130195
+    },
+    {
+      "cobertura_p10_p90": 0.767677,
+      "corte": "2017-06-12",
+      "costo_estado": "completo",
+      "costo_total": 290211.34,
+      "dias_con_real": 7,
+      "estado": "parcial",
+      "revision": 1,
+      "wape": 0.131647
+    },
+    {
+      "cobertura_p10_p90": null,
+      "corte": "2017-06-19",
+      "costo_estado": "pendiente",
+      "costo_total": null,
+      "dias_con_real": 0,
+      "estado": "sin_datos",
+      "revision": 1,
+      "wape": null
+    }
+  ],
+  "evento": "seguimiento",
+  "publicaciones": 28,
+  "revisiones": [
+    "2017-02-06/rev=2",
+    "2017-03-13/rev=2",
+    "2017-05-08/rev=2"
+  ]
+}
