@@ -1,0 +1,26 @@
+{
+  "corte": "2017-07-10",
+  "evento": "pronostico",
+  "manifiestos": {
+    "rev=1": {
+      "advertencias": [
+        "ventas: faltan 1 fecha(s) en la ventana (2017-07-04)",
+        "promociones: último dato 2017-07-19, se esperaba al menos el 2017-07-20"
+      ],
+      "calidad": "degradada",
+      "corte": "2017-07-10",
+      "filas_pronostico": 24948,
+      "git_commit": "fd25eca4f5ce5076a108573e4896020b0c8c3174",
+      "huella_entradas": "61861c9f44fab954c2aa04ec1eb15e06ad6e631675244ad7ef88ad69af688d9e",
+      "modelo_id": "lgbm-2017-01-02-d1a22558",
+      "revision": 1,
+      "series": 1782,
+      "sha256_archivos": {
+        "pedido.parquet": "816df09463804bbe5f578fb376d8cabfe5f17ca74264a1a457d0756871e46672",
+        "pronostico.parquet": "1c34556648530e653f12e823304310d7eb4bafde20594e7b2f0bbe4794b2e726"
+      },
+      "sha256_business": "ffa12888d3f8940293537f2325c891a4c3c9b6f0c2835a062d989257d22070ff",
+      "sha256_model": "ad30fdfe31c917e9a34c22d0257e440f2c8f1f4c0fbc3f2c6af9381cea9484e8"
+    }
+  }
+}
