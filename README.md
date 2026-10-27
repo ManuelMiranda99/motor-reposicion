@@ -64,6 +64,18 @@ python tools/simulate_bandeja.py --limpiar --hasta 2017-06-30  # bandeja parcial
 Los escenarios inyectados (faltantes, tardíos, correcciones, duplicados, inválidos) quedan listados
 en `bandeja_sim/_escenarios.csv`.
 
+### Ingesta (bandeja → almacén limpio)
+
+```bash
+python -m reposicion.cli ingestar --hasta 2017-09-01   # idempotente; repetirlo no cambia nada
+```
+
+Copia a `data/raw/` cada archivo nuevo de la bandeja (que es de solo lectura), lo valida y lo
+registra en el **ledger** `data/ledger/ingesta.parquet` (hash, versión, estado `valido` /
+`cuarentena` / `duplicado`, correcciones y llegadas tardías). Con los válidos reconstruye
+`data/limpio/<fuente>.parquet`, que se consulta con `reposicion.asof.asof(fuente, corte, dir_data)`:
+exactamente lo que se sabía en la fecha de corte.
+
 ## Estructura
 
 | Ruta | Contenido |

@@ -194,12 +194,14 @@ def _rng(semilla: int, etiqueta: str, fecha_dato: str) -> np.random.Generator:
 
 
 def cargar_kaggle(
-    directorio: str | Path, tiendas_nuevas: dict[int, date]
+    directorio: str | Path, tiendas_nuevas: dict[int, date], anticipacion_promociones: int = 0
 ) -> dict[str, pd.DataFrame]:
     """Lee los CSV de Kaggle y los separa en las fuentes del sistema de origen.
 
     Las filas de tiendas nuevas anteriores a su fecha de alta se eliminan: antes del alta la tienda
-    no existe para el sistema de origen.
+    no existe para el sistema de origen. Las promociones se anticipan, así que tampoco se planifican
+    para una tienda nueva mientras su maestro no esté entregado: se descartan las que llegarían
+    antes del alta (fecha < alta + `anticipacion_promociones`).
     """
     d = Path(directorio)
     train = pd.read_csv(d / "train.csv", dtype={"date": str, "family": str}).drop(columns="id")
@@ -215,7 +217,10 @@ def cargar_kaggle(
         df = datos[fuente]
         antes_de_alta = pd.Series(False, index=df.index)
         for tienda, alta in tiendas_nuevas.items():
-            antes_de_alta |= (df["store_nbr"] == tienda) & (df["date"] < alta.isoformat())
+            primera = alta + timedelta(
+                days=anticipacion_promociones if fuente == "promociones" else 0
+            )
+            antes_de_alta |= (df["store_nbr"] == tienda) & (df["date"] < primera.isoformat())
         datos[fuente] = df[~antes_de_alta].reset_index(drop=True)
     return datos
 
@@ -418,7 +423,7 @@ def generar(
 ) -> dict[str, int]:
     """Genera la carga histórica y la bandeja. Devuelve un resumen con conteos."""
     dir_historico, dir_bandeja = Path(dir_historico), Path(dir_bandeja)
-    datos = cargar_kaggle(dir_kaggle, cfg.tiendas_nuevas)
+    datos = cargar_kaggle(dir_kaggle, cfg.tiendas_nuevas, cfg.fuentes.promociones.anticipacion_dias)
     entregas = programar_entregas(datos, cfg)
     carga = cfg.fecha_carga_historica
 

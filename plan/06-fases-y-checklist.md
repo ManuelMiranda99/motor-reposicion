@@ -27,11 +27,11 @@ orientativas para una sola persona.
 - [ ] Pruebas del simulador (fechas, conteos, que haya correcciones).
 
 ## Fase 3 — Ingesta, ledger, validación y as-of (2 días) · `feat/ingesta`
-- [ ] `ingest/` con lectura de patrones desde `sources.yaml`, sha256 y ledger.
-- [ ] `validate/` con esquemas pandera, reglas duras/blandas y cuarentena.
-- [ ] `asof.py` + **prueba de leakage** (bandeja completa vs. truncada → idéntico).
-- [ ] Detección de correcciones y cortes afectados.
-- [ ] Pruebas unitarias por cada escenario de la tabla de 03.
+- [x] `ingest/` con lectura de patrones desde `sources.yaml`, sha256 y ledger.
+- [x] `validate/` con validación con pandas (sin pandera, ver DECISIONES §6), reglas duras/blandas y cuarentena.
+- [x] `asof.py` + **prueba de leakage** (bandeja completa vs. truncada → idéntico).
+- [x] Detección de correcciones y cortes afectados.
+- [x] Pruebas unitarias por cada escenario de la tabla de 03.
 
 ## Fase 4 — Features + baseline + backtest (1.5 días) · `feat/features-baseline`
 - [ ] `features/` (ancladas a T y sin recursión).

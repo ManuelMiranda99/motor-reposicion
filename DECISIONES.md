@@ -13,9 +13,9 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 3 | Gestión de dependencias con pip + venv | Aceptada |
 | 4 | Flujo Git: `main` protegida, ramas y PRs con CI | Aceptada |
 | 4b | Simulación del sistema de origen (bandeja) y carga histórica | Aceptada |
-| 5 | Disponibilidad de la información en el tiempo (as-of) | Pendiente |
-| 6 | Validación de datos: reglas duras vs. blandas | Pendiente |
-| 7 | Manejo de correcciones | Pendiente |
+| 5 | Disponibilidad de la información en el tiempo (as-of) | Aceptada |
+| 6 | Validación de datos: reglas duras vs. blandas | Aceptada |
+| 7 | Manejo de correcciones | Aceptada |
 | 8 | Modelos, validación temporal y métricas | Pendiente |
 | 9 | Pedido sugerido (newsvendor) | Pendiente |
 | 10 | Criterio de reemplazo de modelo | Pendiente |
@@ -105,3 +105,65 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   generado. Cuando llegue la bandeja oficial solo cambia el adaptador de ingesta.
 - **Versionado:** `data/historico` y `bandeja_sim` se versionan con DVC (`data/historico.dvc`,
   `bandeja_sim.dvc`). La bandeja vive fuera de `data/` porque representa un sistema externo.
+
+## 5. Disponibilidad de la información en el tiempo (as-of)
+
+- **Contexto:** el pronóstico del corte T solo puede usar lo que existía en T; un dato corregido o
+  tardío debe verse distinto según la fecha de consulta.
+- **Alternativas:** usar el `mtime` del archivo (no es reproducible: cambia al copiar o restaurar) o
+  la fecha en que se ingirió (depende de cuándo se corrió el flujo, no de cuándo llegó el dato).
+- **Decisión:** cada fila del almacén limpio tiene `fecha_disponible` = la carpeta de entrega de la
+  bandeja. `asof(fuente, T)` filtra `fecha_disponible <= T` (las entregas del propio T cuentan,
+  porque el flujo corre de madrugada tras la entrega nocturna), conserva la versión máxima por
+  `fecha_dato` y, en snapshots (`tiendas`), solo el más reciente. La fecha de corte siempre llega
+  como parámetro.
+- **Carga histórica:** sus filas no tienen fecha de entrega, así que se les aplica la regla de su
+  fuente (ventas D+1, transacciones D+3 —el peor caso—, petróleo D+1, promociones D−10, feriados un
+  trimestre antes, tiendas siempre disponibles con la fecha centinela 1900-01-01). Alternativa
+  descartada: todo disponible el 2017-01-01, porque los backtests de 2016 tendrían leakage.
+- **Almacén limpio:** un parquet por fuente con todas las versiones, reconstruido de forma
+  determinista desde histórico + ledger + `data/raw` (idempotente por construcción). Alternativa
+  descartada: particionar por `fecha_dato`, más complejo de mantener idempotente.
+- **Maestro de tiendas durante la ingesta:** cada archivo se valida contra el último snapshot válido
+  con `fecha_entrega <=` la del archivo (nunca `<= hasta`), para que ingerir por partes y de una vez
+  dé lo mismo. Consecuencia: el origen no puede planificar promociones de una tienda antes de entregar
+  su maestro, y se corrigió el simulador para respetarlo (las promociones de la tienda 52 empiezan
+  en la entrega del 2017-04-13).
+- **Prueba clave:** `test_asof_sin_leakage` ingiere la bandeja completa y una truncada en T y exige
+  `asof(f, T)` idéntico para todas las fuentes.
+
+## 6. Validación de datos: reglas duras vs. blandas
+
+- **Contexto:** los archivos inválidos no deben contaminar los resultados, pero las situaciones
+  esperadas del negocio no deben tumbar el flujo.
+- **Decisión:** pandas puro (`validacion.py`), leyendo todo como texto para controlar `N/A` y vacíos.
+  - *Duras* (cuarentena, el archivo queda en `data/raw` y en el ledger con sus errores): vacío o
+    ilegible, columna requerida ausente, valor no convertible, `date` distinta de `fecha_dato`,
+    llave duplicada, negativos, tienda fuera del maestro vigente, familia desconocida.
+  - *Blandas* (advertencia): columnas extra (se descartan), ventas incompletas respecto a
+    tiendas × familias, tienda con ventas totales en 0 (cerrada), petróleo vacío.
+- **Alternativas descartadas:** pandera (dependencia nueva para reglas que son más claras como
+  funciones: fecha del nombre, maestro vigente, llave); esquema estricto (cualquier columna extra a
+  cuarentena); cuarentena por completitud mínima (queda disponible como `completitud_min_ventas` en
+  `config/validation.yaml`, apagado, porque una tienda cerrada puede faltar legítimamente).
+- **Modo degradado:** `ultima_fecha_disponible` (fuente detenida) y `fechas_faltantes` (huecos
+  intermedios en una ventana, excepto `dias_sin_operacion`) se consumen en la fase 5; un hueco da
+  advertencia, no falla. No se implementó una regla de variación de volumen: necesita historia
+  dentro de la validación y complicaría la idempotencia (mejora futura).
+
+## 7. Manejo de correcciones
+
+- **Contexto:** el mismo archivo puede volver a llegar con otro contenido, igual o inválido.
+- **Decisión:** el ledger (`data/ledger/ingesta.parquet`) registra una fila por archivo con
+  `(archivo, sha256)` como llave de idempotencia. Versión por `(fuente, fecha_dato)`: primer válido =
+  1; mismo sha256 que la última versión válida = `duplicado` (misma versión); contenido distinto =
+  versión + 1 y `es_correccion` (aunque coincida con una versión más vieja: la fuente lo reenvió
+  como vigente); inválido = `cuarentena` (versión 0). `es_tardio` marca la primera versión válida
+  entregada después de `fecha_dato + lag_esperado + tolerancia`.
+- **Correcciones y publicados:** `correcciones_entre` y `cortes_afectados` (funciones puras) dicen
+  qué cortes ya calculados cambiarían; la fase 7 los recalcula como una **nueva revisión** y nunca
+  sobrescribe lo publicado.
+- **Archivo modificado en la bandeja:** si un archivo ya ingerido cambia de contenido en su misma
+  ruta, se ignora con una advertencia (una corrección real llega en una carpeta posterior).
+- **Alternativa descartada:** sobrescribir la fila anterior (se perdería qué se sabía en cada corte).
+
