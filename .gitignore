@@ -1,6 +1,5 @@
-# Datos y modelos: se versionan con DVC, nunca con git
-/data/
-/store-sales-time-series-forecasting/
+# Datos y modelos: se versionan con DVC, nunca con git.
+# DVC genera un .gitignore dentro de data/ por cada salida que rastrea.
 /bandeja_sim/
 *.csv
 *.parquet

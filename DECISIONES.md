@@ -35,9 +35,19 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 
 - **Contexto:** el remoto tiene que ser compartido y el equipo docente debe poder hacer `dvc pull`.
 - **Alternativas:** S3/GCS (credenciales y costo), Google Drive (OAuth frágil para terceros).
-- **Decisión:** DagsHub como remoto S3-compatible ligado al repo de GitHub.
-- **Justificación:** es gratuito, la autenticación es simple con un token y el acceso de lectura para
-  los docentes es directo.
+- **Decisión:** DagsHub como remoto S3-compatible (`s3://dvc` con endpoint
+  `https://dagshub.com/ManuelMiranda99/motor-reposicion.s3`) ligado al repo de GitHub. Las
+  credenciales van solo en `.dvc/config.local` (fuera de git) y se configuran con
+  `tools/dvc_auth.sh`.
+- **Justificación:** es gratuito, se integra con el repo de GitHub y la autenticación es un solo token.
+- **Limitación encontrada:** DagsHub exige iniciar sesión para cualquier acceso, incluso de lectura a
+  repos públicos. Se probó `dvc pull` anónimo desde un clon limpio, por S3 (con
+  `allow_anonymous_login`) y por HTTP (`.dvc`), y ambos devuelven 401. Por eso quien evalúe necesita
+  una cuenta gratuita de DagsHub y su propio token. Como el repo es público, ese token le da lectura;
+  no hace falta invitarlo como colaborador.
+- **Alternativa descartada:** un bucket S3/R2 con lectura pública permitiría `dvc pull` sin cuenta,
+  pero exige una cuenta cloud con tarjeta y administrar políticas del bucket. Se descartó para
+  mantener la infraestructura mínima.
 
 ## 3. Gestión de dependencias con pip + venv
 
@@ -45,7 +55,8 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   el Python global.
 - **Alternativas:** uv, Poetry.
 - **Decisión:** `python -m venv .venv` con `requirements.txt` (runtime) y `requirements-dev.txt`
-  (desarrollo), ambos con versiones fijadas con `==`.
+  (desarrollo), ambos con versiones fijadas con `==`. `dvc[s3]` va en runtime porque Airflow lo usa
+  para versionar las publicaciones.
 - **Justificación:** es el estándar más simple y la imagen de Airflow lo consume directamente
   (`pip install -r requirements.txt`). Las versiones fijadas dan reproducibilidad.
 
