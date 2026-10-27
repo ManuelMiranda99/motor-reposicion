@@ -91,13 +91,52 @@ fuentes:
     imprescindible: true
 ```
 
+Reglas de llenado de `sources.yaml`:
+- Toda fuente con `lag_esperado_dias` lleva también `tolerancia_retraso_dias`. Si no se indica,
+  vale 0.
+  - Valores: ventas 2, promociones 0, transacciones 0 (3 ya es el peor caso del lag variable),
+    petróleo 2.
+  - `feriados` y `tiendas` no tienen lag esperado y nunca se marcan como tardíos.
+- `imprescindible` no lo consume la fase 3. Lo usa `verificar_datos` en la fase 5/6, para decidir
+  qué fuentes pueden fallar el corte.
+
 `config/validation.yaml`:
 
 ```yaml
-variacion_volumen_max: 3.0        # advertir si el total del día > 3× o < 1/3 de la mediana de 28 días
 modo_degradado:
   max_dias_sin_ventas: 3          # en el corte T: si la última venta disponible < T-1-3 → fallar
+  ventana_huecos_dias: 28         # contar fechas faltantes de ventas en los últimos 28 días → advertencia
+  dias_sin_operacion: ["12-25"]   # mes-día sin ventas por diseño (no son huecos)
+# completitud_min_ventas: 0.8     # solo si el usuario elige la opción "cuarentena si falta > X%"
 ```
+
+No implementes una regla de variación de volumen en esta fase: necesita historia dentro de la
+validación y complica la idempotencia. Queda como mejora futura en DECISIONES.
+
+**Validación con pandas puro.** El plan inicial (P3) proponía pandera, pero las reglas de este
+proyecto (fecha del nombre, maestro vigente, llave, tipos desde texto) son más claras como
+funciones de pandas, y así se evita una dependencia. Si el usuario prefiere pandera, pregúntalo
+como una quinta decisión. Si no, anota en DECISIONES que se descartó y por qué.
+
+## Rutas y variables de entorno
+
+Crea `src/reposicion/rutas.py` con `dir_data() -> Path` (variable `REPOSICION_DATA`, por defecto
+`<repo>/data`) y `dir_bandeja() -> Path` (variable `REPOSICION_BANDEJA`, por defecto
+`<repo>/bandeja_sim`). **Solo la CLI y los DAGs** llaman a estas funciones; los módulos de lógica
+siempre reciben las rutas por parámetro (así las pruebas usan `tmp_path`).
+
+## Escritura determinista de parquet
+
+Crea `src/reposicion/io.py` con `escribir_parquet(df, ruta)`:
+1. Convierte con `pa.Table.from_pandas(df, preserve_index=False)` y un esquema explícito, derivado
+   de los tipos de `sources.yaml`: `fecha` → `date32`, `entero` → `int64`, `decimal` → `float64`
+   (nullable), `texto` → `string`, `booleano` → `bool`.
+2. Elimina los metadatos de pandas con `table.replace_schema_metadata(None)`.
+3. Escribe con `pq.write_table(..., compression="zstd")` a `ruta.tmp` y luego `os.replace`.
+
+Úsalo para **todo** parquet del proyecto. Para "siempre disponible" usa la fecha centinela
+`date(1900, 1, 1)`, no `date.min`. Prueba: escribir dos veces el mismo DataFrame da bytes
+idénticos.
 
 ## Módulos y contratos
 
@@ -133,9 +172,22 @@ tiendas × familias; total del día de una tienda en 0 (tienda cerrada); petról
 fuera de rango (esta regla necesita historia, así que es opcional en `validar_archivo` y puede
 hacerse en la ingesta).
 
-- `tiendas_validas` = maestro `asof("tiendas", fecha_entrega)`. Por eso, dentro de una misma
-  `fecha_entrega`, se procesa **primero** el archivo de tiendas.
+- `tiendas_validas` = el maestro de tiendas **vigente en `fecha_entrega`**. Durante la ingesta
+  **no** se obtiene con `asof` (el almacén limpio se reconstruye al final y puede estar
+  desactualizado). En cambio, `ingestar` mantiene el maestro en memoria:
+  1. Parte de `data/historico/tiendas.csv`.
+  2. Para validar un archivo con fecha de entrega X, usa el último snapshot `tiendas` **válido**
+     con `fecha_entrega <= X` (del ledger, leído de `data/raw`, o recién validado en esta misma
+     corrida). **Nunca** uses `<= hasta`: vería un snapshot futuro y la ingesta incremental
+     daría un resultado distinto de la completa.
+  3. Al validar un archivo nuevo de `tiendas`, actualiza el maestro antes de seguir.
+
+  Como los archivos se procesan en orden (por `fecha_entrega`, con `tiendas` primero), ingerir de
+  forma incremental o completa da el mismo resultado. Una fila de la tienda 52 entregada antes del
+  2017-04-13 sería `tienda desconocida`, es decir, cuarentena (el simulador nunca la genera; está
+  bien que sea así).
 - `familias_validas` = familias del histórico de ventas.
+- Completitud de ventas: "tiendas activas" = las tiendas del maestro vigente.
 
 ### `src/reposicion/ingesta.py`
 
@@ -161,6 +213,19 @@ def ingestar(hasta: date, dir_data: Path, bandeja: Path, cfg_fuentes, cfg_valida
   ledger, no se hace nada. Para cada archivo nuevo: copia byte a byte a
   `data/raw/<relativa>` (con `shutil.copyfile`, nunca mueve ni borra la bandeja), valida y
   agrega una fila al ledger. Al final reconstruye el almacén limpio si hubo cambios.
+- **Estado y versión de un archivo nuevo** (el mismo `fuente` + `fecha_dato` puede llegar varias
+  veces, en carpetas distintas):
+
+  | Caso | estado | version | es_correccion |
+  |---|---|---|---|
+  | falla la validación | `cuarentena` | 0 | False |
+  | válido y es el primero válido de esa fecha | `valido` | 1 | False |
+  | válido, mismo sha256 que la **última versión válida** | `duplicado` | la de esa versión | False |
+  | válido, contenido distinto de la última versión válida (aunque sea igual a una versión más vieja) | `valido` | última + 1 | True |
+
+  Un archivo idéntico a uno en cuarentena se vuelve a validar y da el mismo resultado: otra fila
+  `cuarentena`. Así, "igual a una versión vieja" cuenta como una versión nueva: la fuente volvió a
+  enviar ese contenido como el vigente.
 - Devuelve un resumen: nuevos, válidos, en cuarentena, duplicados, advertencias y correcciones
   detectadas.
 
@@ -174,7 +239,7 @@ def ingestar(hasta: date, dir_data: Path, bandeja: Path, cfg_fuentes, cfg_valida
 | archivo | str | ruta relativa a la bandeja |
 | sha256 | str | |
 | estado | str | `valido` \| `cuarentena` \| `duplicado` |
-| version | int | por (fuente, fecha_dato): 1, 2, … solo entre archivos **válidos** con contenido distinto; `duplicado` repite la versión del original; `cuarentena` = 0 |
+| version | int | por (fuente, fecha_dato), según la tabla "Estado y versión" de abajo: `cuarentena` = 0, `duplicado` repite la versión que duplica y cada `valido` con contenido distinto al de la última versión válida suma 1 |
 | es_correccion | bool | válido con versión > 1 (ya había una versión válida antes) |
 | es_tardio | bool | primera versión válida con `fecha_entrega > fecha_dato + lag_esperado + tolerancia` |
 | errores | str | separados por `; ` |
@@ -196,7 +261,8 @@ def leer_limpio(dir_data: Path, fuente: str) -> pd.DataFrame
   `data/raw` (`origen="bandeja"`, con su versión).
 - Columnas: las tipadas de la fuente + `fecha_dato` (date; en feriados es el inicio del trimestre),
   `fecha_disponible` (date), `version` (int), `origen` (str).
-- En el histórico de `tiendas`, `fecha_dato = fecha_disponible = date.min` (siempre disponible).
+- En el histórico de `tiendas`, `fecha_dato = fecha_disponible = date(1900, 1, 1)` (siempre
+  disponible).
 - La salida es determinista: orden estable y escritura atómica.
 
 ### `src/reposicion/asof.py`
@@ -212,8 +278,16 @@ def asof(fuente: str, corte: date, dir_data: Path) -> pd.DataFrame
 5. Puede cachear `leer_limpio` (lru_cache con la ruta y el mtime), pero el resultado no debe
    depender de la caché.
 
-Agrega también `ultima_fecha_disponible(fuente, corte, dir_data) -> date | None`, que se usará en
-el modo degradado.
+Agrega también dos funciones que usará el modo degradado de la fase 5:
+- `ultima_fecha_disponible(fuente, corte, dir_data) -> date | None`: detecta una fuente detenida.
+  Si la última venta < T−1−`max_dias_sin_ventas`, se falla.
+- `fechas_faltantes(fuente, corte, ventana_dias, dir_data) -> list[date]`: detecta **huecos
+  intermedios**, por ejemplo la venta del 2017-07-04 que nunca llega. Hay hueco si un día de
+  calendario de `[T−ventana, T−1]` no tiene datos en `asof`, excepto los días de
+  `dias_sin_operacion` (en `validation.yaml`: `["12-25"]`, mes-día). Aplícalo solo a `ventas`
+  (y a `transacciones` si se quiere). **No** lo apliques a `petroleo`: sus huecos de fin de
+  semana y feriados son normales. Un hueco solo genera una advertencia y
+  `calidad = "degradada"`; no falla.
 
 ### `src/reposicion/correcciones.py`
 
@@ -233,9 +307,20 @@ que imprime el resumen.
 
 ## Pruebas requeridas (`tests/unit/`)
 
-Usa el simulador con los datos sintéticos de `tests/unit/test_simulador.py`: mueve el fixture de
-datos tipo Kaggle a `tests/conftest.py` para reutilizarlo y genera con él una bandeja pequeña con
-los escenarios. Pruebas mínimas:
+**Datos sintéticos.** En `tests/unit/test_simulador.py` no hay fixtures compartidos, sino las
+funciones `_escribir_kaggle(d)` y `_config(**cambios)` y las constantes `TIENDAS` y `FAMILIAS`.
+Refactoriza (sin cambiar lo que prueban las pruebas del simulador):
+1. Mueve esas funciones a `tests/sinteticos.py` (un módulo normal; agrega `tests/__init__.py`, que
+   ya existe, para que se pueda importar como `tests.sinteticos`). Agrega a `_escribir_kaggle` un
+   parámetro `inicio="2016-12-01"` y `fin="2017-02-28"`.
+2. En `tests/conftest.py`, define fixtures de sesión: `kaggle_sintetico`, `config_sintetica`
+   (el `_config()` actual, con escenarios de enero a febrero de 2017 y la tienda 3 nueva el
+   2017-01-20) y `bandeja_sintetica` (corre `simulador.generar` y devuelve `(historico, bandeja)`).
+3. Los escenarios de `config/simulador.yaml` (de marzo a julio) **no** se usan en las pruebas
+   unitarias: las pruebas usan los de `config_sintetica`. Para un escenario extra, crea una
+   config propia en la prueba con `_config(escenarios={...})`.
+
+Pruebas mínimas:
 
 - `test_escanear_respeta_hasta`: ningún archivo con `fecha_entrega > hasta`.
 - `test_escanear_ignora_prefijo_y_nombres_raros`.
@@ -249,8 +334,15 @@ los escenarios. Pruebas mínimas:
 - `test_reentrega_valida_tras_cuarentena_es_version_1`.
 - `test_tienda_nueva_valida_solo_desde_su_alta`.
 - `test_tardio_marcado_y_no_visible_antes_de_su_entrega`.
-- `test_historico_respeta_disponibilidad`: `asof("ventas", 2016-06-06)` no contiene fechas ≥
-  2016-06-06; las promociones llegan hasta 2016-06-16.
+- `test_historico_respeta_disponibilidad` (dentro del rango sintético): `asof("ventas", 2016-12-12)`
+  no contiene fechas ≥ 2016-12-12, y en `asof("promociones", 2016-12-12)` la fecha máxima es el
+  2016-12-22.
+- `test_ventas_de_ayer_visibles_en_el_corte`: `asof("ventas", T)` contiene T−1 (entregada en T) y
+  no contiene T.
+- `test_fechas_faltantes_detecta_hueco` (con un escenario de ventas faltante) y
+  `test_ultima_fecha_disponible`.
+- `test_duplicado_de_version_vieja_es_version_nueva`.
+- `test_escribir_parquet_determinista`.
 - **`test_asof_sin_leakage`** (la más importante): genera la bandeja completa y una copia
   truncada con solo las carpetas ≤ T. Ingiere cada una en un `dir_data` distinto y comprueba
   que `asof(f, T)` sea idéntico para todas las fuentes y para varios T, incluido uno justo
@@ -274,7 +366,9 @@ Compara los resultados con `bandeja_sim/_escenarios.csv`: **cada escenario debe 
 una segunda corrida y verifica que nada cambie (`shasum` del ledger antes y después). Mide el tiempo
 total; la reconstrucción del almacén limpio debería tardar menos de ~1 minuto.
 
-Luego `dvc add data/raw data/ledger data/limpio`, `dvc push` y commitea los `.dvc`.
+Luego `dvc add data/raw data/ledger data/limpio`, `dvc push` y commitea los `.dvc`. DVC agrega
+`/raw`, `/ledger` y `/limpio` al `data/.gitignore` existente, que es un archivo trackeado: commitea
+también ese cambio.
 
 ## Documentación
 
