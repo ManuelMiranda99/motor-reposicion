@@ -1,0 +1,6 @@
+outs:
+- md5: c3ce5cb458ef200b2ac52ce4ef36d58a.dir
+  size: 151153921
+  nfiles: 6
+  hash: md5
+  path: historico

@@ -1,6 +1,5 @@
 # Datos y modelos: se versionan con DVC, nunca con git.
 # DVC genera un .gitignore dentro de data/ por cada salida que rastrea.
-/bandeja_sim/
 *.csv
 *.parquet
 *.pkl
@@ -29,3 +28,4 @@ airflow.cfg
 .DS_Store
 .idea/
 .vscode/
+/bandeja_sim

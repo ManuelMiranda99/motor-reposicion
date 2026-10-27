@@ -12,6 +12,7 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 2 | Remoto DVC en DagsHub | Aceptada |
 | 3 | Gestión de dependencias con pip + venv | Aceptada |
 | 4 | Flujo Git: `main` protegida, ramas y PRs con CI | Aceptada |
+| 4b | Simulación del sistema de origen (bandeja) y carga histórica | Aceptada |
 | 5 | Disponibilidad de la información en el tiempo (as-of) | Pendiente |
 | 6 | Validación de datos: reglas duras vs. blandas | Pendiente |
 | 7 | Manejo de correcciones | Pendiente |
@@ -67,3 +68,40 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 - **Decisión:** `main` exige PR con el check `lint-y-pruebas` en verde y no permite force-push ni
   borrado. Como el proyecto es individual, no se exige aprobación de otra persona.
 - **Justificación:** garantiza que todo cambio en `main` pasó las pruebas automatizadas.
+
+## 4b. Simulación del sistema de origen (bandeja) y carga histórica
+
+- **Contexto:** el equipo docente publicará una carga histórica y una bandeja con archivos por fecha
+  y fuente, con frecuencias y anticipaciones distintas y con correcciones. Mientras no estén
+  disponibles se necesita un sustituto realista para desarrollar y probar.
+- **Decisión:** un simulador determinista (`src/reposicion/simulador.py`,
+  `tools/simulate_bandeja.py`, `config/simulador.yaml`) que, a partir de los CSV de Kaggle, genera:
+  - **Bandeja** `bandeja_sim/<fecha_entrega>/<fuente>_<fecha_dato>.csv`. La fecha en que un archivo
+    estuvo disponible se toma de la **carpeta**, no del mtime (que no es reproducible). Una
+    corrección es el mismo nombre de archivo en una carpeta posterior.
+  - **Carga histórica** `data/historico/<fuente>.csv`: todo lo que ya se había entregado al
+    2017-01-01, aplicando las mismas reglas de entrega (no un corte arbitrario por fecha).
+- **Fuentes y anticipación:**
+
+  | Fuente | Llega | Comentario |
+  |---|---|---|
+  | `ventas` (sales) | D+1 | |
+  | `promociones` (onpromotion) | D−10 | Separada de ventas: el plan comercial se conoce de antemano |
+  | `transacciones` | D+1 a D+3 | Lag variable (determinista por fecha) |
+  | `petroleo` | D+1 | Solo días hábiles |
+  | `feriados` | Un trimestre antes | Un archivo por trimestre |
+  | `tiendas` | En la fecha de alta | Maestro completo; la tienda 52 (abre 2017-04-20) se da de alta el 2017-04-13 |
+
+- **Escenarios inyectados** (documentados en `bandeja_sim/_escenarios.csv`): archivo que nunca
+  llega, llegada tardía que cruza un corte, correcciones de ventas y petróleo, duplicado idéntico y
+  archivos inválidos (ventas negativas, columna faltante, filas duplicadas, tienda desconocida,
+  tipo inválido), algunos con reentrega válida posterior. Además están los escenarios naturales de
+  los datos: tiendas cerradas el 1 de enero, transacciones con huecos y petróleo con faltantes.
+- **Alternativas:** dejar `onpromotion` dentro de ventas (como Kaggle), descartado porque no habría
+  información de promociones para el horizonte; usar una bandeja plana con ambas fechas en el
+  nombre, descartado por ser menos legible.
+- **Justificación:** la aleatoriedad de cada archivo depende solo de (semilla, fuente, fecha), así
+  que el resultado es reproducible y la bandeja puede "ampliarse" (`--hasta`) sin alterar lo ya
+  generado. Cuando llegue la bandeja oficial solo cambia el adaptador de ingesta.
+- **Versionado:** `data/historico` y `bandeja_sim` se versionan con DVC (`data/historico.dvc`,
+  `bandeja_sim.dvc`). La bandeja vive fuera de `data/` porque representa un sistema externo.
