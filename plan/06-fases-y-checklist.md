@@ -34,10 +34,10 @@ orientativas para una sola persona.
 - [x] Pruebas unitarias por cada escenario de la tabla de 03.
 
 ## Fase 4 — Features + baseline + backtest (1.5 días) · `feat/features-baseline`
-- [ ] `features/` (ancladas a T y sin recursión).
-- [ ] `models/baseline.py` + interfaz común `fit / predict_quantiles`.
-- [ ] `backtest.py` (rolling-origin) y métricas (WAPE, RMSLE, pinball, cobertura, costo newsvendor).
-- [ ] `order.py` + `business.yaml`, con una prueba de que al cambiar los costos cambia el pedido.
+- [x] `features/` (ancladas a T y sin recursión).
+- [x] `models/baseline.py` + interfaz común `fit / predict_quantiles`.
+- [x] `backtest.py` (rolling-origin) y métricas (WAPE, RMSLE, pinball, cobertura, costo newsvendor).
+- [x] `order.py` + `business.yaml`, con una prueba de que al cambiar los costos cambia el pedido.
 
 ## Fase 5 — LightGBM + champion/challenger (1.5 días) · `feat/lgbm`
 - [ ] `models/lgbm.py` con un modelo por cuantil y orden monotónico.

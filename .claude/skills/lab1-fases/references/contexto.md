@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 3)
+# Contexto del proyecto (estado al cerrar la fase 4)
 
 ## Contenido
 
@@ -50,7 +50,8 @@ src/reposicion/__init__.py        # __version__
 src/reposicion/config.py          # cargar_yaml(ruta) -> dict
 src/reposicion/simulador.py       # simulador de bandeja (fase 2)
 src/reposicion/{rutas,io,fuentes,validacion,ingesta,almacen,asof,correcciones,cli}.py   # fase 3
-config/sources.yaml  config/validation.yaml
+config/sources.yaml  config/validation.yaml  config/model.yaml  config/business.yaml
+src/reposicion/{parametros,datos,features,metricas,pedido,backtest}.py  src/reposicion/modelos/{base,baseline}.py   # fase 4
 tests/sinteticos.py  tests/conftest.py   # fixtures: kaggle_sintetico, config_sintetica, bandeja_sintetica, cfg_fuentes, cfg_validacion
 tools/simulate_bandeja.py         # CLI del simulador
 tools/dvc_auth.sh                 # configura el token de DagsHub
@@ -135,7 +136,7 @@ a ser `corte=`).
 | `data/raw/<fecha_entrega>/<archivo>` | ingesta (F3) | copia byte a byte de cada archivo leído de la bandeja |
 | `data/ledger/ingesta.parquet` | ingesta (F3) | una fila por archivo visto (ver F3) |
 | `data/limpio/<fuente>.parquet` | ingesta (F3) | todas las versiones válidas + `fecha_dato`, `fecha_disponible`, `version`, `origen` |
-| `data/backtest/<modelo>/<corte>/` | F4/F5 | predicciones y métricas de backtest |
+| `data/backtest/<modelo>/corte=YYYY-MM-DD/` | F4/F5 | `predicciones.parquet` (store_nbr, family, origen, fecha_objetivo, h, y, `q…`) y `metricas.parquet` (nivel/clave: global y por origen) |
 | `data/models/<modelo_id>/` + `data/models/registro.parquet` | F5 | modelos entrenados y su historial de promoción |
 | `data/published/corte=YYYY-MM-DD/rev=N/` | F5/F6 | `pronostico.parquet`, `pedido.parquet`, `manifest.json` |
 | `data/monitoring/` | F7 | métricas por corte y reportes |
@@ -207,3 +208,18 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 - **DVC y archivos ignorados:** `dvc add` falla si el `.dvc` resultante queda ignorado por git
   (`FileIsGitIgnored`). Agrega las rutas de salida a `data/.gitignore` (lo hace DVC) y deja los
   `.dvc` fuera de los patrones ignorados.
+
+## 9. Fase 4: lo que quedó implementado (para las fases 5 a 7)
+
+- `parametros.cargar_configs(dir_config)` devuelve `Configs(modelo, negocio, fuentes)`; es el `cfgs` de
+  `ejecutar_backtest`. `modelos.fabrica(nombre, cfgs)` crea modelos nuevos: registra ahí el LightGBM.
+- `features.construir_features(datos, origenes, cfg_modelo, cfg_fuentes, con_objetivo)`: 1.28 M filas
+  para 52 orígenes en ~1.5 s. Las columnas categóricas (`store_nbr`, `family`, `city`, `state`,
+  `type`, `cluster`) usan las categorías de los datos recibidos; en la fase 5 alinéalas con las del
+  entrenamiento antes de predecir (la tienda 52 solo existe en el maestro desde 2017-04-13).
+- Cuantiles requeridos: [0.10, 0.40, 0.50, 0.67, 0.90, 0.91] (τ redondeado a 2 decimales en
+  `pedido.cuantil_critico`). `pedido.calcular_pedido` espera `corte`, `store_nbr`, `family`,
+  `fecha_objetivo` y columnas `q…`.
+- Piso del baseline (corte 2017-08-14): WAPE 0.1425, RMSLE 0.4516, cobertura P10–P90 0.8431,
+  costo total 2,991,009, fill rate 0.9741, merma 0.1062.
+- Las distancias a feriados se acotan a 30 días (ver `DECISIONES.md` §8).

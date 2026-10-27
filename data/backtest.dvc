@@ -1,0 +1,6 @@
+outs:
+- md5: d56c9a5a615d50a77ea29783e8092f40.dir
+  size: 8094588
+  nfiles: 2
+  hash: md5
+  path: backtest

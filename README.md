@@ -76,6 +76,19 @@ registra en el **ledger** `data/ledger/ingesta.parquet` (hash, versión, estado 
 `data/limpio/<fuente>.parquet`, que se consulta con `reposicion.asof.asof(fuente, corte, dir_data)`:
 exactamente lo que se sabía en la fecha de corte.
 
+### Backtest de un modelo
+
+```bash
+python -m reposicion.cli backtest --modelo baseline --corte 2017-08-14
+```
+
+Entrena y evalúa con rolling-origin (los últimos 8 lunes cuyos 14 días ya se conocen en el corte;
+cada origen entrena con las 52 semanas anteriores) y escribe
+`data/backtest/<modelo>/corte=<corte>/predicciones.parquet` y `metricas.parquet` (WAPE, RMSLE,
+pinball, cobertura P10–P90 y, sobre el pedido, costo newsvendor, fill rate y % de merma). Los
+costos, la cobertura y el lead time del pedido están en `config/business.yaml`; el horizonte, los
+cuantiles y la ventana de entrenamiento, en `config/model.yaml`.
+
 ## Estructura
 
 | Ruta | Contenido |
