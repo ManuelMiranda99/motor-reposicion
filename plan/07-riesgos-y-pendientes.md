@@ -6,7 +6,7 @@
 |---|---|---|
 | El formato de la bandeja oficial difiere del simulado | Alto | Un adaptador aislado en `ingest/` + `sources.yaml`; el resto del sistema solo ve el ledger |
 | Los docentes no tienen credenciales de push (DagsHub/GitHub) al correr el flujo | Alto | El push es *best effort* (`push_remoto: auto`): pronostica y versiona localmente, y solo advierte si el push falla |
-| `dvc pull` falla para los docentes | **Crítico** (proyecto "no reproducible") | Repo de DagsHub público o docentes invitados; probarlo desde un clon limpio y otra cuenta en la fase 8 |
+| `dvc pull` falla para los docentes | **Crítico** (proyecto "no reproducible") | DagsHub **no** permite lectura anónima (verificado en la fase 1: 401 por S3 y por HTTP). Los docentes necesitan una cuenta de DagsHub y su token (`tools/dvc_auth.sh`, documentado en el README). Confirmar con el equipo docente que lo aceptan y probar en la fase 8 con una cuenta distinta a la del dueño |
 | Commits desde el contenedor chocan con la protección de `main` | Medio | Commits solo a la rama `publicaciones` |
 | RAM de Docker insuficiente (Airflow + LightGBM sobre 3M filas) | Medio | LocalExecutor, ventana de entrenamiento desde 2015, dtypes compactos (category/float32), ≥ 6 GB para Docker Desktop |
 | Concurrencia en git/DVC durante el backfill | Medio | `max_active_runs=1` + pool `dvc_git` de tamaño 1 |
@@ -21,6 +21,8 @@
 - [ ] Cómo va a "ejecutar el flujo sobre un periodo no publicado": ¿apuntando `BANDEJA_PATH` a otra
       carpeta? ¿agregando archivos a la misma? El README debe cubrir ambos casos.
 - [ ] Fecha límite de entrega (para calendarizar las fases).
+- [ ] Que acepten crear una cuenta gratuita de DagsHub para hacer `dvc pull` (DagsHub no permite
+      lectura anónima). Si no lo aceptan → migrar el remoto a un bucket con lectura pública.
 - [ ] Si se aceptan las evidencias como imágenes en git o se prefiere otro formato.
 
 ## Decisiones que quizá te vuelva a preguntar más adelante

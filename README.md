@@ -30,6 +30,26 @@ pip install -r requirements-dev.txt -e .
 ruff check . && pytest
 ```
 
+## Datos (DVC + DagsHub)
+
+Los datos, modelos y pronósticos se versionan con DVC; el remoto es
+[DagsHub](https://dagshub.com/ManuelMiranda99/motor-reposicion). Aunque el repositorio es público,
+**DagsHub exige iniciar sesión para cualquier descarga**, así que se necesita un token (gratis):
+
+1. Crear una cuenta en [dagshub.com](https://dagshub.com) (se puede entrar con GitHub).
+2. Copiar el token en <https://dagshub.com/user/settings/tokens>.
+3. Configurarlo y descargar los datos (el token queda solo en `.dvc/config.local`, fuera de git):
+
+```bash
+source .venv/bin/activate
+./tools/dvc_auth.sh      # pide el token sin mostrarlo en pantalla
+dvc pull
+```
+
+| Ruta | Contenido |
+|---|---|
+| `data/kaggle/` | CSV originales de Kaggle (insumo del simulador de bandeja) |
+
 ## Estructura
 
 | Ruta | Contenido |
