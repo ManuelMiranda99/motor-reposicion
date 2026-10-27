@@ -1,0 +1,32 @@
+# Datos y modelos: se versionan con DVC, nunca con git
+/data/
+/store-sales-time-series-forecasting/
+/bandeja_sim/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+*.lgb
+
+# Enunciado del laboratorio
+*.pdf
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Airflow / Docker
+logs/
+.env
+airflow.cfg
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
