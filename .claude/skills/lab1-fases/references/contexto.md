@@ -95,7 +95,7 @@ Cada fase completa las suyas.
 - En `feriados`, `fecha_dato` es el **inicio del trimestre** que cubre el archivo (por ejemplo
   `feriados_2017-07-01.csv` llega en `2017-04-01/`). En `tiendas`, es la fecha del snapshot.
 - Una **corrección** es el mismo nombre de archivo en una carpeta posterior.
-- `bandeja_sim/_escenarios.csv` documenta los escenarios inyectados. Todo archivo que empiece con
+- `bandeja_sim/_escenarios.csv` documenta los escenarios inyectados (en las filas `faltante`, `fecha_entrega` es la fecha en que **debió** llegar; ese archivo no existe). Todo archivo que empiece con
   `_` **no** es dato del sistema de origen y la ingesta debe ignorarlo.
 - Escenarios (de `config/simulador.yaml`):
 
@@ -139,6 +139,17 @@ a ser `corte=`).
 | `reports/` (en git, pequeño) | F5 y F8 | comparación de modelos y evidencias |
 
 La bandeja se ubica con la variable `REPOSICION_BANDEJA` (por defecto `bandeja_sim/`).
+
+### Utilidades compartidas (se crean en F3 y se usan en todas las fases siguientes)
+
+- `reposicion.rutas`: `dir_data()` y `dir_bandeja()` resuelven las variables de entorno. Solo los
+  llaman la CLI y los DAGs; la lógica recibe las rutas por parámetro.
+- `reposicion.io.escribir_parquet(df, ruta)`: parquet determinista (esquema explícito, sin
+  metadatos de pandas, atómico). Úsalo para **todo** parquet. La fecha centinela "siempre
+  disponible" es `date(1900, 1, 1)`.
+- `tests/sinteticos.py` + `tests/conftest.py`: datos tipo Kaggle sintéticos y una bandeja
+  sintética con escenarios (fixtures `kaggle_sintetico`, `config_sintetica` y
+  `bandeja_sintetica`).
 
 ### Configuración (`config/`)
 

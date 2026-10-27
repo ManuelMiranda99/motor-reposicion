@@ -119,7 +119,7 @@ def pronosticar_corte(corte: date, dir_data, cfgs, revision: int = 1) -> Path
 1. `datos = cargar_datos_asof(corte)`. Chequeo de modo degradado: si
    `ultima_fecha_disponible("ventas", corte) < corte - 1 - max_dias_sin_ventas`, lanza
    `DatosInsuficientes` con un mensaje claro. Si solo hay huecos menores (por ejemplo, el faltante
-   del 2017-07-04), continúa y marca `calidad = "degradada"` con advertencias.
+   del 2017-07-04, detectado con `fechas_faltantes("ventas", corte, ventana_huecos_dias)`), continúa y marca `calidad = "degradada"` con advertencias. Las fuentes con `imprescindible: false` nunca hacen fallar el corte.
 2. `modelo = champion_vigente(corte)`; si no hay, entrena el baseline en el momento (para no
    fallar) y lo anota en el manifiesto.
 3. Features del origen `corte` → `predecir_cuantiles(cuantiles_requeridos)` → `calcular_pedido`.

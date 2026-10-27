@@ -74,6 +74,17 @@ Registra cada respuesta en `plan/ESTADO.md` (sección "Decisiones tomadas") y en
 - Si una dependencia nueva hace falta: `pip install x`, fija la versión que resolvió con `==` en
   `requirements.txt` (runtime) o `requirements-dev.txt` (solo dev/CI).
 
+### Cuando la especificación no alcanza
+
+Las referencias son detalladas, pero no cubren todos los casos borde. Si encuentras un hueco:
+1. Si cambia un **contrato** (rutas, columnas, firmas que usa otra fase) o algo que vería el
+   docente → pregunta al usuario.
+2. Si es semántica interna → decide aplicando los principios del final de este archivo (as-of,
+   idempotencia, inmutabilidad), escribe una prueba que fije la decisión y anótala en
+   `DECISIONES.md` y en el resumen final.
+3. Si corregiste un contrato, actualiza también `references/contexto.md` (y la referencia de la
+   fase siguiente si la afecta) en el mismo PR, para que la próxima sesión parta de la verdad.
+
 ## 5. Cerrar la fase (checklist)
 
 1. `ruff check . && ruff format --check . && pytest` en verde.

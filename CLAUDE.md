@@ -28,7 +28,7 @@ pytest                                  # pruebas
    dentro de ella.
 4. **Ningún dato ni modelo va a git.** Todo lo que está en `data/` se versiona con DVC. No se
    commitean CSV, Parquet ni modelos.
-5. **Idempotencia:** cada tarea escribe en una partición determinista (`cutoff=YYYY-MM-DD`) con
+5. **Idempotencia:** cada tarea escribe en una partición determinista (`corte=YYYY-MM-DD`, y `rev=N` en las publicaciones) con
    escritura atómica (archivo temporal + `os.replace`). Ejecutarla N veces da el mismo resultado que
    ejecutarla una vez. Las semillas son fijas.
 6. **Los pronósticos publicados son inmutables.** Una corrección de datos produce una nueva revisión
