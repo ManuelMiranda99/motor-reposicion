@@ -3,7 +3,9 @@
 Motor de reposición de inventario (Lab 1, Product Development). Transforma datos de ventas que llegan
 diariamente en un pronóstico por cuantiles y un pedido sugerido semanal por tienda × familia, y hace
 seguimiento del desempeño. Stack: Python 3.11, pip + venv, Git, DVC (remoto DagsHub), Airflow 3 en
-Docker Compose, pytest + GitHub Actions. El plan detallado está en `plan/`.
+Docker Compose, pytest + GitHub Actions. El plan detallado está en `plan/` y el avance en
+`plan/ESTADO.md`. Para continuar con la siguiente fase usa la skill `lab1-fases`
+(`.claude/skills/lab1-fases/`), que tiene la especificación detallada de las fases 3 a 8.
 
 ## Comandos
 
