@@ -1,0 +1,7 @@
+# Dependencias de runtime (también se instalan en la imagen de Airflow).
+# Versiones fijadas con == para reproducibilidad.
+numpy==2.4.6
+pandas==3.1.0
+pyarrow==26.0.0
+pydantic==2.14.1
+PyYAML==6.0.3
