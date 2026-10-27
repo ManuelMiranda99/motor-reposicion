@@ -1,0 +1,48 @@
+# Simulador del sistema de origen (bandeja) — ver src/reposicion/simulador.py
+# Solo se usa para desarrollo y pruebas; el producto nunca lee este archivo.
+
+semilla: 2017
+
+# Todo lo entregado hasta esta fecha (inclusive) forma la carga histórica inicial.
+fecha_carga_historica: 2017-01-01
+
+# Última fecha de entrega a generar (null = hasta el final de los datos). Sirve para simular
+# que la bandeja "se amplía": generar primero hasta una fecha y luego volver a correr más adelante.
+hasta: null
+
+# Cuándo llega cada fuente respecto a la fecha del dato.
+fuentes:
+  ventas:        {lag_dias: 1}                  # ventas del día D llegan en D+1
+  promociones:   {anticipacion_dias: 10}        # el plan de promociones de D llega en D-10
+  transacciones: {lag_min_dias: 1, lag_max_dias: 3}  # lag variable (determinista por fecha)
+  petroleo:      {lag_dias: 1}                  # solo días hábiles (como en Kaggle)
+  feriados:      {anticipacion_trimestres: 1}   # calendario del trimestre Q llega al inicio de Q-1
+
+# Tiendas que se dan de alta durante la operación: no existen en el maestro histórico y su
+# maestro actualizado (tiendas_<fecha>.csv) llega en la fecha de alta. La tienda 52 abre el
+# 2017-04-20 en los datos reales.
+tiendas_nuevas:
+  52: 2017-04-13
+
+# Situaciones operativas inyectadas. Todas deben caer después de fecha_carga_historica.
+escenarios:
+  faltantes:            # el archivo nunca llega
+    - {fuente: transacciones, fecha_dato: 2017-02-20}
+    - {fuente: ventas,        fecha_dato: 2017-07-04}
+
+  tardios:              # el archivo llega varios días después de lo esperado (cruza un corte)
+    - {fuente: ventas, fecha_dato: 2017-03-09, fecha_entrega: 2017-03-15}
+
+  correcciones:         # nueva versión de un archivo ya entregado, con valores cambiados
+    - {fuente: ventas,   fecha_dato: 2017-02-03, fecha_entrega: 2017-02-10, fraccion_filas: 0.05, factor: 1.3}
+    - {fuente: petroleo, fecha_dato: 2017-05-02, fecha_entrega: 2017-05-09, fraccion_filas: 1.0,  factor: 1.05}
+
+  duplicados:           # el mismo archivo, idéntico, entregado otra vez
+    - {fuente: ventas, fecha_dato: 2017-04-05, fecha_entrega: 2017-04-07}
+
+  invalidos:            # archivo con defectos; opcionalmente llega luego una versión válida
+    - {fuente: ventas,        fecha_dato: 2017-05-10, defecto: ventas_negativas,   correccion_entrega: 2017-05-12}
+    - {fuente: transacciones, fecha_dato: 2017-06-05, defecto: columna_faltante}
+    - {fuente: ventas,        fecha_dato: 2017-06-21, defecto: filas_duplicadas,   correccion_entrega: 2017-06-23}
+    - {fuente: promociones,   fecha_dato: 2017-07-20, defecto: tienda_desconocida}
+    - {fuente: ventas,        fecha_dato: 2017-07-26, defecto: tipo_invalido,      correccion_entrega: 2017-07-28}

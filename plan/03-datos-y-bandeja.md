@@ -49,6 +49,10 @@ Es parametrizable para poder reproducir lo que podría pasar en la evaluación:
 
 ## Validación (pandera + reglas)
 
+> Lectura: los CSV de la bandeja se leen **con `keep_default_na=False`** y tipos como texto. Si no,
+> pandas convierte valores como `N/A` en NaN y el archivo con tipo inválido pasaría la validación
+> (detectado en la fase 2).
+
 **Reglas duras → rechazo/cuarentena del archivo** (no se propaga):
 - Esquema: columnas, tipos, fecha parseable.
 - Llave única (`date, store_nbr, family`); sin duplicados.

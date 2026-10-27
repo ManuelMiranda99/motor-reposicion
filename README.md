@@ -49,6 +49,20 @@ dvc pull
 | Ruta | Contenido |
 |---|---|
 | `data/kaggle/` | CSV originales de Kaggle (insumo del simulador de bandeja) |
+| `data/historico/` | Carga histórica inicial: todo lo entregado hasta 2017-01-01, un CSV por fuente |
+| `bandeja_sim/` | Bandeja simulada: `<fecha_entrega>/<fuente>_<fecha_dato>.csv` (2017-01-02 → 2017-09-01) |
+
+### Regenerar la carga histórica y la bandeja simulada
+
+`dvc pull` ya las trae. Para regenerarlas (son deterministas, `config/simulador.yaml`):
+
+```bash
+python tools/simulate_bandeja.py --limpiar                     # completa
+python tools/simulate_bandeja.py --limpiar --hasta 2017-06-30  # bandeja parcial (luego se puede ampliar)
+```
+
+Los escenarios inyectados (faltantes, tardíos, correcciones, duplicados, inválidos) quedan listados
+en `bandeja_sim/_escenarios.csv`.
 
 ## Estructura
 
