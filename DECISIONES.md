@@ -16,8 +16,8 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 5 | Disponibilidad de la información en el tiempo (as-of) | Aceptada |
 | 6 | Validación de datos: reglas duras vs. blandas | Aceptada |
 | 7 | Manejo de correcciones | Aceptada |
-| 8 | Modelos, validación temporal y métricas | Pendiente |
-| 9 | Pedido sugerido (newsvendor) | Pendiente |
+| 8 | Modelos, validación temporal y métricas | Aceptada (baseline; LightGBM en la fase 5) |
+| 9 | Pedido sugerido (newsvendor) | Aceptada |
 | 10 | Criterio de reemplazo de modelo | Pendiente |
 | 11 | Versionado de publicaciones desde Airflow | Pendiente |
 
@@ -167,3 +167,47 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   ruta, se ignora con una advertencia (una corrección real llega en una carpeta posterior).
 - **Alternativa descartada:** sobrescribir la fila anterior (se perdería qué se sabía en cada corte).
 
+## 8. Modelos, validación temporal y métricas
+
+- **Contexto:** hace falta un piso de comparación y una validación que no filtre el futuro.
+- **Features:** ancladas al origen O (el corte), sin recursión y con la misma regla de
+  disponibilidad por fuente en entrenamiento e inferencia (ventas hasta O−1, transacciones hasta
+  O−3, petróleo hasta O−1 con forward-fill, promociones del día objetivo solo hasta O+10; en
+  entrenamiento se enmascaran igual que en inferencia, así h = 12..14 trae la promoción en NaN en
+  ambos). Las distancias a feriados se acotan a 30 días: los feriados se conocen un trimestre antes,
+  pero acotar garantiza que lo visto en entrenamiento coincida con lo visto en inferencia.
+  Verificado con `test_features_iguales_en_entrenamiento_e_inferencia` y `test_features_sin_leakage`
+  (esa prueba detectó un error real: el calendario de feriados no llegaba 30 días más allá del
+  último día objetivo).
+- **Baseline:** media de los últimos 4 días con el mismo día de semana; cuantiles con los residuos
+  empíricos en espacio log por (familia, h), guardados en JSON (sin pickle). Regla de ceros: sin
+  ventas en 56 días → pronóstico 0.
+- **Validación:** rolling-origin con los últimos 8 lunes cuyos 14 días ya se conocen; cada origen
+  entrena con las 52 semanas anteriores cuyo último día objetivo termina antes del origen. Mismos
+  orígenes y misma ventana para todos los modelos. Alternativa descartada: k-fold aleatorio
+  (mezcla pasado y futuro).
+- **Datos revisados vs. as-of:** el backtest lee `asof(corte_final)`, es decir, datos con las
+  correcciones ya aplicadas; la operación usa as-of estricto en cada corte. El backtest es por lo
+  tanto ligeramente optimista frente a lo que ocurriría en vivo.
+- **Métricas:** WAPE y RMSLE sobre la mediana, pinball por cuantil, cobertura P10–P90 y, sobre los
+  pedidos, costo newsvendor, fill rate y % de unidades en merma. Una serie con ventas
+  desconocidas (p. ej. el faltante del 2017-07-04) no cuenta en las métricas.
+- **Resultado del baseline** (corte 2017-08-14, 199,584 predicciones): WAPE 0.143, RMSLE 0.452,
+  cobertura P10–P90 84.3%, fill rate 97.4%, merma 10.6%. Es el piso que debe superar la fase 5.
+  El WAPE queda por debajo del rango de referencia (0.2–0.5) porque pondera por volumen y las
+  familias grandes son muy estables.
+
+## 9. Pedido sugerido (newsvendor)
+
+- **Contexto:** convertir el pronóstico por cuantiles en una cantidad a pedir por tienda × familia.
+- **Decisión:** τ = c_quiebre / (c_quiebre + c_merma) por grupo de familias, **redondeado a 2
+  decimales** para que el modelo se entrene exactamente en el cuantil que usa el pedido. Tres
+  grupos (`config/business.yaml`): perecederos (1.0 / 1.5, τ = 0.40), no perecederos (1.0 / 0.1,
+  τ = 0.91) y default (1.0 / 0.5, τ = 0.67). El pedido es la suma de los cuantiles diarios τ sobre
+  la cobertura (7 días, lead time 0, es decir h = 1..7), menos el inventario inicial (0, porque no
+  hay datos de inventario), redondeada hacia arriba y nunca negativa.
+- **Alternativas descartadas:** un solo grupo de costos (poco realista) y entrenar el cuantil τ de
+  la demanda semanal (más correcto, pero agrega modelos; se evaluará en la fase 5). La suma de
+  cuantiles supone dependencia perfecta entre días y es, por tanto, conservadora.
+- **Si τ no está entre las columnas** del pronóstico, se interpola linealmente entre los cuantiles
+  vecinos y se registra una advertencia.

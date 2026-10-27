@@ -1,0 +1,11 @@
+# Parámetros del pronóstico y del backtest — ver src/reposicion/parametros.py
+horizonte_dias: 14
+dia_corte: 0                       # 0 = lunes
+cuantiles_reporte: [0.1, 0.5, 0.9]
+ventana_origenes_semanas: 52       # orígenes semanales de entrenamiento antes del corte
+semilla: 2017
+backtest:
+  n_origenes: 8                    # últimos 8 lunes cuyos 14 días ya se conocen
+  paso_dias: 7
+ventana_features_dias: 364         # cuánta historia usan las features (para cortes_afectados)
+regla_ceros: {dias_sin_ventas: 56} # serie sin ventas en 56 días → pronóstico 0

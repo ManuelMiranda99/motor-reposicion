@@ -1,0 +1,22 @@
+# Costos y reglas del pedido sugerido (newsvendor) — ver src/reposicion/parametros.py
+# τ = c_quiebre / (c_quiebre + c_merma), redondeado a 2 decimales.
+cobertura_dias: 7                  # el pedido del corte T cubre T..T+6
+lead_time_dias: 0
+inventario_inicial: 0              # supuesto: no hay datos de inventario
+redondeo: entero_arriba            # entero_arriba | entero_cercano
+grupos:
+  perecederos:                     # τ = 0.40
+    c_quiebre: 1.0
+    c_merma: 1.5
+    familias: [PRODUCE, DAIRY, MEATS, POULTRY, SEAFOOD, BREAD/BAKERY, DELI, EGGS, FROZEN FOODS,
+               PREPARED FOODS]
+  no_perecederos:                  # τ = 0.91
+    c_quiebre: 1.0
+    c_merma: 0.1
+    familias: [AUTOMOTIVE, HARDWARE, BOOKS, MAGAZINES, HOME APPLIANCES, HOME AND KITCHEN I,
+               HOME AND KITCHEN II, LADIESWEAR, LINGERIE, LAWN AND GARDEN,
+               SCHOOL AND OFFICE SUPPLIES, PLAYERS AND ELECTRONICS, CELEBRATION, PET SUPPLIES,
+               CLEANING, HOME CARE, PERSONAL CARE, BEAUTY, BABY CARE, "LIQUOR,WINE,BEER"]
+  default:                         # τ = 0.67; todas las demás familias
+    c_quiebre: 1.0
+    c_merma: 0.5
