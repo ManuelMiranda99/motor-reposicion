@@ -9,7 +9,7 @@ cada fase, en el mismo PR.
 | 1 — DVC + DagsHub | `feat/dvc` | ✅ Hecha | #2 | DagsHub no permite lectura anónima → los docentes necesitan token |
 | 2 — Simulador de bandeja | `feat/bandeja-sim` | ✅ Hecha | #3 | `data/historico` + `bandeja_sim` en DVC; 14 escenarios |
 | 3 — Ingesta, ledger, validación, as-of | `feat/ingesta` | ✅ Hecha | #6 | 853 archivos: 847 válidos, 5 cuarentena, 1 duplicado; simulador corregido (promos tienda 52) |
-| 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ✅ Hecha | (pendiente) | Baseline en el corte 2017-08-14: WAPE 0.143, cobertura P10–P90 84.3%, fill rate 97.4% |
+| 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ✅ Hecha | #7 | Baseline en el corte 2017-08-14: WAPE 0.143, cobertura P10–P90 84.3%, fill rate 97.4% |
 | 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ⏳ Pendiente | | |
 | 6 — Airflow 3 en Docker | `feat/airflow` | ⏳ Pendiente | | |
 | 7 — Monitoreo, correcciones, e2e | `feat/monitoreo` | ⏳ Pendiente | | |
