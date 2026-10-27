@@ -8,7 +8,7 @@ cada fase, en el mismo PR.
 | 0 — Fundaciones | `feat/setup` | ✅ Hecha | #1 | Repo, venv, CI (`lint-y-pruebas`), `main` protegida, CLAUDE.md |
 | 1 — DVC + DagsHub | `feat/dvc` | ✅ Hecha | #2 | DagsHub no permite lectura anónima → los docentes necesitan token |
 | 2 — Simulador de bandeja | `feat/bandeja-sim` | ✅ Hecha | #3 | `data/historico` + `bandeja_sim` en DVC; 14 escenarios |
-| 3 — Ingesta, ledger, validación, as-of | `feat/ingesta` | ✅ Hecha | PR pendiente | 853 archivos: 847 válidos, 5 cuarentena, 1 duplicado; simulador corregido (promos tienda 52) |
+| 3 — Ingesta, ledger, validación, as-of | `feat/ingesta` | ✅ Hecha | #6 | 853 archivos: 847 válidos, 5 cuarentena, 1 duplicado; simulador corregido (promos tienda 52) |
 | 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ⏳ Pendiente | | |
 | 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ⏳ Pendiente | | |
 | 6 — Airflow 3 en Docker | `feat/airflow` | ⏳ Pendiente | | |
