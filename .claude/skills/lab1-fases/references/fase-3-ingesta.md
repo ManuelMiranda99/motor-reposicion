@@ -106,6 +106,7 @@ Reglas de llenado de `sources.yaml`:
 modo_degradado:
   max_dias_sin_ventas: 3          # en el corte T: si la última venta disponible < T-1-3 → fallar
   ventana_huecos_dias: 28         # contar fechas faltantes de ventas en los últimos 28 días → advertencia
+  dias_sin_operacion: ["12-25"]   # mes-día sin ventas por diseño (no son huecos)
 # completitud_min_ventas: 0.8     # solo si el usuario elige la opción "cuarentena si falta > X%"
 ```
 
@@ -127,8 +128,9 @@ siempre reciben las rutas por parámetro (así las pruebas usan `tmp_path`).
 ## Escritura determinista de parquet
 
 Crea `src/reposicion/io.py` con `escribir_parquet(df, ruta)`:
-1. Convierte con `pa.Table.from_pandas(df, preserve_index=False)` y un esquema explícito (fechas
-   como `date32`, enteros `int64`, texto `string`).
+1. Convierte con `pa.Table.from_pandas(df, preserve_index=False)` y un esquema explícito, derivado
+   de los tipos de `sources.yaml`: `fecha` → `date32`, `entero` → `int64`, `decimal` → `float64`
+   (nullable), `texto` → `string`, `booleano` → `bool`.
 2. Elimina los metadatos de pandas con `table.replace_schema_metadata(None)`.
 3. Escribe con `pq.write_table(..., compression="zstd")` a `ruta.tmp` y luego `os.replace`.
 
@@ -174,8 +176,10 @@ hacerse en la ingesta).
   **no** se obtiene con `asof` (el almacén limpio se reconstruye al final y puede estar
   desactualizado). En cambio, `ingestar` mantiene el maestro en memoria:
   1. Parte de `data/historico/tiendas.csv`.
-  2. Lo reemplaza por el último snapshot `tiendas` **válido** del ledger con
-     `fecha_entrega <= hasta` que ya se haya procesado, leído de `data/raw`.
+  2. Para validar un archivo con fecha de entrega X, usa el último snapshot `tiendas` **válido**
+     con `fecha_entrega <= X` (del ledger, leído de `data/raw`, o recién validado en esta misma
+     corrida). **Nunca** uses `<= hasta`: vería un snapshot futuro y la ingesta incremental
+     daría un resultado distinto de la completa.
   3. Al validar un archivo nuevo de `tiendas`, actualiza el maestro antes de seguir.
 
   Como los archivos se procesan en orden (por `fecha_entrega`, con `tiendas` primero), ingerir de
@@ -235,7 +239,7 @@ def ingestar(hasta: date, dir_data: Path, bandeja: Path, cfg_fuentes, cfg_valida
 | archivo | str | ruta relativa a la bandeja |
 | sha256 | str | |
 | estado | str | `valido` \| `cuarentena` \| `duplicado` |
-| version | int | por (fuente, fecha_dato): 1, 2, … solo entre archivos **válidos** con contenido distinto; `duplicado` repite la versión del original; `cuarentena` = 0 |
+| version | int | por (fuente, fecha_dato), según la tabla "Estado y versión" de abajo: `cuarentena` = 0, `duplicado` repite la versión que duplica y cada `valido` con contenido distinto al de la última versión válida suma 1 |
 | es_correccion | bool | válido con versión > 1 (ya había una versión válida antes) |
 | es_tardio | bool | primera versión válida con `fecha_entrega > fecha_dato + lag_esperado + tolerancia` |
 | errores | str | separados por `; ` |
@@ -278,9 +282,11 @@ Agrega también dos funciones que usará el modo degradado de la fase 5:
 - `ultima_fecha_disponible(fuente, corte, dir_data) -> date | None`: detecta una fuente detenida.
   Si la última venta < T−1−`max_dias_sin_ventas`, se falla.
 - `fechas_faltantes(fuente, corte, ventana_dias, dir_data) -> list[date]`: detecta **huecos
-  intermedios**, por ejemplo la venta del 2017-07-04 que nunca llega. Hay hueco si una fecha de
-  `[T−ventana, T−1]` no tiene datos en `asof`. Excluye las fechas sin datos en ningún año, como el
-  25 de diciembre, y los días no hábiles en petróleo. Un hueco solo genera una advertencia y
+  intermedios**, por ejemplo la venta del 2017-07-04 que nunca llega. Hay hueco si un día de
+  calendario de `[T−ventana, T−1]` no tiene datos en `asof`, excepto los días de
+  `dias_sin_operacion` (en `validation.yaml`: `["12-25"]`, mes-día). Aplícalo solo a `ventas`
+  (y a `transacciones` si se quiere). **No** lo apliques a `petroleo`: sus huecos de fin de
+  semana y feriados son normales. Un hueco solo genera una advertencia y
   `calidad = "degradada"`; no falla.
 
 ### `src/reposicion/correcciones.py`
