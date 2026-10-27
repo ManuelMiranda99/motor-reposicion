@@ -1,0 +1,54 @@
+# Fuentes de datos del sistema de origen — ver src/reposicion/fuentes.py
+fecha_carga_historica: 2017-01-01
+bandeja:
+  variable_entorno: REPOSICION_BANDEJA
+  ruta_defecto: bandeja_sim
+  patron_carpeta: '^\d{4}-\d{2}-\d{2}$'
+  patron_archivo: '^(?P<fuente>[a-z]+)_(?P<fecha_dato>\d{4}-\d{2}-\d{2})\.csv$'
+  prefijo_ignorado: "_"
+fuentes:
+  ventas:
+    columnas: {date: fecha, store_nbr: entero, family: texto, sales: decimal}
+    llave: [date, store_nbr, family]
+    no_negativas: [sales]
+    nulos_permitidos: []
+    disponibilidad_historica: {tipo: dias, dias: 1}
+    lag_esperado_dias: 1
+    tolerancia_retraso_dias: 2
+    imprescindible: true
+  promociones:
+    columnas: {date: fecha, store_nbr: entero, family: texto, onpromotion: entero}
+    llave: [date, store_nbr, family]
+    no_negativas: [onpromotion]
+    disponibilidad_historica: {tipo: dias, dias: -10}
+    lag_esperado_dias: -10
+    tolerancia_retraso_dias: 0
+    imprescindible: false
+  transacciones:
+    columnas: {date: fecha, store_nbr: entero, transactions: entero}
+    llave: [date, store_nbr]
+    no_negativas: [transactions]
+    disponibilidad_historica: {tipo: dias, dias: 3}   # peor caso del lag variable (1 a 3)
+    lag_esperado_dias: 3
+    tolerancia_retraso_dias: 0
+    imprescindible: false
+  petroleo:
+    columnas: {date: fecha, dcoilwtico: decimal}
+    llave: [date]
+    no_negativas: [dcoilwtico]
+    nulos_permitidos: [dcoilwtico]
+    disponibilidad_historica: {tipo: dias, dias: 1}
+    lag_esperado_dias: 1
+    tolerancia_retraso_dias: 2
+    imprescindible: false
+  feriados:
+    columnas: {date: fecha, type: texto, locale: texto, locale_name: texto, description: texto, transferred: booleano}
+    llave: [date, locale_name, description]
+    disponibilidad_historica: {tipo: trimestre_anticipado, trimestres: 1}
+    imprescindible: false
+  tiendas:
+    columnas: {store_nbr: entero, city: texto, state: texto, type: texto, cluster: entero}
+    llave: [store_nbr]
+    snapshot: true             # cada archivo reemplaza el maestro completo
+    disponibilidad_historica: {tipo: siempre}
+    imprescindible: true

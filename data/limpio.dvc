@@ -1,0 +1,6 @@
+outs:
+- md5: b0db1b42d4ab51686d68a6a88df31436.dir
+  size: 8161553
+  nfiles: 6
+  hash: md5
+  path: limpio

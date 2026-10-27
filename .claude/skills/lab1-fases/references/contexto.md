@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 2)
+# Contexto del proyecto (estado al cerrar la fase 3)
 
 ## Contenido
 
@@ -49,6 +49,9 @@ config/simulador.yaml
 src/reposicion/__init__.py        # __version__
 src/reposicion/config.py          # cargar_yaml(ruta) -> dict
 src/reposicion/simulador.py       # simulador de bandeja (fase 2)
+src/reposicion/{rutas,io,fuentes,validacion,ingesta,almacen,asof,correcciones,cli}.py   # fase 3
+config/sources.yaml  config/validation.yaml
+tests/sinteticos.py  tests/conftest.py   # fixtures: kaggle_sintetico, config_sintetica, bandeja_sintetica, cfg_fuentes, cfg_validacion
 tools/simulate_bandeja.py         # CLI del simulador
 tools/dvc_auth.sh                 # configura el token de DagsHub
 tests/unit/test_package.py
@@ -181,6 +184,8 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 - pip + venv; proyecto individual.
 - Airflow versiona sus salidas con DVC y deja el registro en git en una rama `publicaciones` que
   **no** es `main` (ver F6 para el cómo).
+- F3: las promociones de una tienda nueva solo se entregan desde la fecha de su maestro (el simulador descarta las anteriores); la tienda 52 tiene promociones desde la entrega del 2017-04-13. Ledger real: 853 archivos = 847 válidos, 5 cuarentena, 1 duplicado.
+- F3: en memoria las fechas son `datetime64[ns]`; en disco `date32`. Leer parquet con `almacen.leer_parquet`; `asof` devuelve `fecha_dato` y `fecha_disponible`; `fechas_faltantes` recibe `dias_sin_operacion` como parámetro opcional.
 - Supuestos: inventario inicial = 0 (configurable); `sales` = demanda observada (censurada por
   quiebres); deep learning descartado por costo/beneficio.
 
