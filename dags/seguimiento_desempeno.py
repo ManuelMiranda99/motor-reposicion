@@ -1,7 +1,9 @@
 """Seguimiento semanal (lunes): revisiones por correcciones y desempeño vs ventas reales (fase 7).
 
-`asegurar_ingesta` → `emitir_revisiones` (rev=N+1 de los cortes vigentes afectados por una
-corrección) → `evaluar_publicados` (métricas, reporte y alerta) → versionado.
+`asegurar_ingesta` → `asegurar_publicaciones` (los `rev=1` de las últimas semanas, por si el DAG de
+pronóstico aún no corrió: en un backfill no hay orden entre DAGs) → `emitir_revisiones` (rev=N+1
+de los cortes vigentes afectados por una corrección) → `evaluar_publicados` (métricas, reporte y
+alerta) → versionado.
 """
 
 from airflow.sdk import dag, task
@@ -10,6 +12,7 @@ from _comun import (
     ARGUMENTOS,
     ARGUMENTOS_REMOTO,
     END_DATE,
+    OPERACION,
     POOL,
     START_DATE,
     bandeja,
@@ -41,6 +44,13 @@ def seguimiento_desempeno():
         return asdict(orq.asegurar_ingesta(corte(), dir_data(), bandeja(), config()))
 
     @task(pool=POOL)
+    def asegurar_publicaciones() -> dict:
+        """Publica los rev=1 que falten (no-op si ya existen): el resultado no depende del orden."""
+        return orq.asegurar_publicaciones(
+            corte(), dir_data(), bandeja(), config(), OPERACION.inicio
+        )
+
+    @task(pool=POOL)
     def emitir_revisiones() -> dict:
         return orq.emitir_revisiones(corte(), dir_data(), config())
 
@@ -58,6 +68,7 @@ def seguimiento_desempeno():
 
     (
         asegurar_ingesta()
+        >> asegurar_publicaciones()
         >> emitir_revisiones()
         >> evaluar_publicados()
         >> versionar_seguimiento()

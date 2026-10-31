@@ -136,6 +136,7 @@ def reproducir(
             datos_hasta=None if "datos_hasta" not in previo else datos_hasta,
             motivo=previo.get("motivo"),
             revision_de=previo.get("revision_de"),
+            modelo_id=previo.get("modelo_id"),
         )
         nuevo = json.loads((nuevo_dir / "manifest.json").read_text(encoding="utf-8"))
 

@@ -2,5 +2,7 @@
 modo_degradado:
   max_dias_sin_ventas: 3          # en el corte T: si la última venta disponible < T-1-3 → fallar
   ventana_huecos_dias: 28         # fechas faltantes de ventas en los últimos 28 días → advertencia
-  dias_sin_operacion: ["12-25"]   # mes-día sin ventas por diseño (no son huecos)
+# Los días sin operación (mes-día sin demanda normal) están en model.yaml (`dias_sin_operacion`):
+# no cuentan como huecos de ventas y las features no los usan como rezago.
+tiendas_permitir_bajas: false     # un snapshot de tiendas que omite tiendas del vigente → cuarentena
 # completitud_min_ventas: 0.8     # descomentar para mandar a cuarentena ventas con < 80% de filas

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from reposicion.almacen import leer_ledger, reconstruir_limpio, ruta_ledger, ruta_limpio
+from reposicion.almacen import leer_ledger, limpio_al_dia, reconstruir_limpio, ruta_ledger
 from reposicion.fuentes import SIEMPRE_DISPONIBLE, ConfigFuentes
 from reposicion.io import escribir_parquet
 from reposicion.validacion import (
@@ -176,10 +176,15 @@ def _maestros_iniciales(
 
 
 def _es_tardio(fcfg, fecha_dato: date, fecha_entrega: date) -> bool:
+    """¿Llegó después de su plazo nominal (`fecha_dato + lag_esperado`)?
+
+    Se mide **sin** la tolerancia: un dato que llega dentro de ella no hace fallar nada (modo
+    degradado), pero sí puede llegar después de un corte que lo necesitaba, y entonces ese corte
+    merece una revisión (ver `revisiones.py`). La tolerancia solo sirve para la calidad de datos.
+    """
     if fcfg.lag_esperado_dias is None:
         return False
-    limite = fecha_dato + timedelta(days=fcfg.lag_esperado_dias + fcfg.tolerancia_retraso_dias)
-    return fecha_entrega > limite
+    return fecha_entrega > fecha_dato + timedelta(days=fcfg.lag_esperado_dias)
 
 
 def ingestar(
@@ -206,9 +211,9 @@ def ingestar(
             continue
         nuevos.append(a)
 
-    hay_limpio = all(ruta_limpio(dir_data, f).exists() for f in cfg_fuentes.fuentes)
     if not nuevos:
-        if not hay_limpio:
+        # Un fallo anterior entre escribir el ledger y reconstruir `limpio/` se repara aquí.
+        if not limpio_al_dia(dir_data, cfg_fuentes):
             reconstruir_limpio(dir_data, cfg_fuentes)
         return resumen
 
@@ -303,4 +308,6 @@ def _validar(
         tiendas,
         familias,
         cfg_val.completitud_min_ventas,
+        fecha_entrega=a.fecha_entrega,
+        permitir_bajas_tiendas=cfg_val.tiendas_permitir_bajas,
     )

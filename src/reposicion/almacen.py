@@ -9,6 +9,8 @@ Layout bajo `dir_data`: `historico/<fuente>.csv`, `raw/<fecha_entrega>/<archivo>
 
 from __future__ import annotations
 
+import hashlib
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -28,6 +30,33 @@ def ruta_ledger(dir_data: Path) -> Path:
 
 def ruta_limpio(dir_data: Path, fuente: str) -> Path:
     return Path(dir_data) / "limpio" / f"{fuente}.parquet"
+
+
+def ruta_marca_limpio(dir_data: Path) -> Path:
+    return Path(dir_data) / "limpio" / "_ledger.sha256"
+
+
+def huella_ledger(dir_data: Path) -> str:
+    """sha256 del contenido lógico del ledger (no de sus bytes), o `"sin-ledger"`."""
+    if not ruta_ledger(dir_data).exists():
+        return "sin-ledger"
+    ledger = leer_ledger(dir_data).astype(str)
+    h = hashlib.sha256()
+    for fila in ledger.itertuples(index=False):
+        h.update("|".join(fila).encode("utf-8") + b"\n")
+    return h.hexdigest()
+
+
+def limpio_al_dia(dir_data: Path, cfg_fuentes: ConfigFuentes) -> bool:
+    """¿`limpio/` está completo y se construyó con el ledger actual?
+
+    `reconstruir_limpio` escribe la marca al final: si el proceso murió a mitad, la marca falta o
+    corresponde a otro ledger y la ingesta siguiente reconstruye (aunque no haya archivos nuevos).
+    """
+    marca = ruta_marca_limpio(dir_data)
+    if not all(ruta_limpio(dir_data, f).exists() for f in cfg_fuentes.fuentes):
+        return False
+    return marca.exists() and marca.read_text(encoding="utf-8").strip() == huella_ledger(dir_data)
 
 
 def leer_parquet(ruta: Path) -> pd.DataFrame:
@@ -88,7 +117,7 @@ def _bandeja(
 
 
 def reconstruir_limpio(dir_data: Path, cfg_fuentes: ConfigFuentes) -> None:
-    """Reconstruye `data/limpio/<fuente>.parquet` para todas las fuentes."""
+    """Reconstruye `data/limpio/<fuente>.parquet` para todas las fuentes y su marca de ledger."""
     dir_data = Path(dir_data)
     ledger = leer_ledger(dir_data) if ruta_ledger(dir_data).exists() else None
     for fuente, cfg in cfg_fuentes.fuentes.items():
@@ -98,6 +127,11 @@ def reconstruir_limpio(dir_data: Path, cfg_fuentes: ConfigFuentes) -> None:
         todo = pd.concat(partes, ignore_index=True)
         todo = todo.sort_values(["fecha_dato", "version", *cfg.llave], kind="stable")
         escribir_parquet(todo.reset_index(drop=True), ruta_limpio(dir_data, fuente))
+    # La marca va al final (atómica): "limpio/ completo y construido con este ledger".
+    marca = ruta_marca_limpio(dir_data)
+    tmp = marca.with_name(marca.name + ".tmp")
+    tmp.write_text(huella_ledger(dir_data) + "\n", encoding="utf-8")
+    os.replace(tmp, marca)
 
 
 @lru_cache(maxsize=8)

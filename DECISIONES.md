@@ -24,6 +24,7 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 | 11 | Orquestación con Airflow y versionado de publicaciones | Aceptada |
 | 12 | Seguimiento del desempeño, revisiones por corrección y alertas | Aceptada |
 | 13 | Reproducibilidad y entrega (fase 8) | Aceptada |
+| 14 | Correcciones de la revisión independiente | Aceptada |
 | — | Limitaciones conocidas | Documentadas |
 
 ---
@@ -164,7 +165,7 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
   1; mismo sha256 que la última versión válida = `duplicado` (misma versión); contenido distinto =
   versión + 1 y `es_correccion` (aunque coincida con una versión más vieja: la fuente lo reenvió
   como vigente); inválido = `cuarentena` (versión 0). `es_tardio` marca la primera versión válida
-  entregada después de `fecha_dato + lag_esperado + tolerancia`.
+  entregada después de `fecha_dato + lag_esperado` (sin tolerancia; ver §14, A1).
 - **Correcciones y publicados:** `correcciones_entre` y `cortes_afectados` (funciones puras) dicen
   qué cortes ya calculados cambiarían. Un publicado **nunca se reescribe**. En el seguimiento
   semanal (fase 7, `revisiones.emitir_revisiones`): (a) el seguimiento se recalcula siempre con el
@@ -173,8 +174,8 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
   (`config/monitoreo.yaml`), se emite `rev=N+1` con `pronosticar_corte(P, revision=N+1,
   datos_hasta=corte_eval)`: el origen y el horizonte siguen siendo los de P, pero los datos son los
   visibles en `corte_eval`, y el modelo es el champion vigente en P. El manifiesto registra
-  `revision_de`, `motivo`, `datos_hasta` y `emitido_en` (= el corte en que se detectó). Las
-  correcciones se buscan en la ventana `(corte_eval - 7, corte_eval]`; un corte cuyo horizonte ya
+  `revision_de`, `motivo`, `datos_hasta` y `emitido_en` (= el corte en que se detectó). Lo
+  pendiente se deriva del ledger contra cada publicación (§14, A2); un corte cuyo horizonte ya
   terminó solo recalcula su seguimiento. Es idempotente: si ya existe una revisión con
   `datos_hasta == corte_eval` no se emite otra (no hay `rev=N+2` al re-correr) y
   `pronosticar_corte` es un no-op con las mismas entradas. Una revisión puede ser numéricamente
@@ -475,6 +476,113 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 - **Capturas de la UI de Airflow:** no automatizadas (no había navegador controlable); la lista exacta
   está en `reports/evidencia/README.md`.
 
+## 14. Correcciones de la revisión independiente
+
+Una revisión adversarial del código (`tests/revision/INFORME.md`, sobre `main` @ `bbe2747`) dejó 19
+pruebas que fallaban a propósito. Se corrigieron los hallazgos de severidad alta y media; los bajos
+(B1–B6) quedan como limitaciones conocidas con su prueba marcada `xfail(strict=True)`. Las pruebas
+viven en `tests/revision/` (el script de diagnóstico con datos reales, que el CI no puede correr,
+pasó a `tools/diagnostico_corte_2017_01_02.py`).
+
+**A1 — un dato que cruza un corte dentro de la tolerancia nunca generaba revisión.**
+- *Contexto:* `es_tardio` exigía llegar después de `lag + tolerancia`. Ventas del domingo D
+  reentregadas (tras cuarentena) o entregadas el martes D+2 quedaban sin marca, y el corte del lunes
+  D+1, publicado sin ese día, nunca se revisaba.
+- *Alternativas:* (a) marcar en el ledger toda primera versión válida con `fecha_entrega >
+  fecha_dato + lag_esperado`; (b) una columna nueva `fuera_de_plazo`; (c) derivar la condición al
+  vuelo en `revisiones.py` con la configuración de fuentes.
+- *Decisión:* (a). `es_tardio` se mide **sin** tolerancia (`ingesta._es_tardio`); la tolerancia queda
+  solo para la calidad de datos (modo degradado). Además `cortes_afectados` recibe `lags_esperados`:
+  una llegada fuera de plazo solo afecta a los cortes que la habrían usado (`fecha_dato + lag <= P <
+  fecha_entrega`), así una reentrega cuyo día cae dentro del horizonte de P no genera una revisión
+  idéntica a la anterior. Las correcciones (`es_correccion`) conservan la regla conservadora de §7.
+- *Justificación:* no cambia el esquema del ledger y es lo que mide el enunciado ("el corte se
+  publicó con datos incompletos y llegó la reentrega"). Costo: `es_tardio` pasa a significar "fuera
+  del plazo nominal", más amplio que "fuera de la tolerancia".
+- *Prueba:* `test_dato_que_cruza_un_corte_dentro_de_la_tolerancia_genera_revision[2]` y
+  `tests/unit/test_correcciones.py`.
+
+**A2 — las revisiones y el seguimiento dependían del orden entre DAGs en el backfill.**
+- *Alternativas:* (a) solo asegurar las publicaciones en el seguimiento; (b) solo derivar lo
+  pendiente del ledger contra cada publicación; (c) ambas.
+- *Decisión:* (c). (1) `revisiones.emitir_revisiones` ya no usa la ventana fija de 7 días
+  (`ventana_correcciones_dias` desaparece de `monitoreo.yaml`): para cada corte publicado toma el
+  `datos_hasta` de su última revisión (el corte en `rev=1`) y revisa las correcciones y llegadas
+  fuera de plazo entregadas en `(datos_hasta, corte_eval]`. Tras emitir, ya no queda nada pendiente:
+  es idempotente. (2) El DAG `seguimiento_desempeno` tiene una tarea nueva `asegurar_publicaciones`
+  (`revisiones.asegurar_publicaciones`, `orquestacion.asegurar_publicaciones`) que publica `rev=1`
+  de los cortes semanales de las últimas `alerta.ventana_cortes` semanas si faltan, con su champion
+  (`asegurar_champion`); `rev=1` es as-of su corte, así que es idéntico al del DAG de pronóstico,
+  que luego es un no-op. Un corte sin datos suficientes se omite con aviso.
+- *Justificación:* (1) solo no basta: si el pronóstico de W corre después de que su horizonte ya
+  terminó, la revisión se pierde; (2) solo no basta si el seguimiento se salta una semana. Juntas el
+  resultado no depende del scheduler.
+- *Prueba:* `test_revision_no_depende_del_orden_seguimiento_pronostico` y
+  `test_correccion_pendiente_se_detecta_aunque_pasen_mas_de_siete_dias`.
+
+**A3 — ingesta no atómica.**
+- *Alternativas:* reconstruir `limpio/` en un directorio temporal y reemplazarlo; marcar el ledger
+  como "pendiente" antes de empezar; guardar en `limpio/` la huella del ledger con el que se
+  construyó.
+- *Decisión:* `limpio/_ledger.sha256` guarda la huella lógica del ledger y se escribe **al final**
+  de `reconstruir_limpio` (atómica). `ingestar` reconstruye siempre que falte la marca o no
+  coincida (`almacen.limpio_al_dia`), aunque no haya archivos nuevos. El ledger sigue siendo el
+  punto de confirmación.
+- *Justificación:* un directorio no se reemplaza de forma atómica con `os.replace` si ya existe;
+  la marca al final también detecta fuentes de generaciones distintas. Costo: la primera ingesta
+  sobre un `limpio/` anterior (sin marca) lo reconstruye una vez (determinista).
+- *Prueba:* `test_fallo_al_reconstruir_limpio_no_deja_el_almacen_obsoleto`.
+
+**M1 — `lag_1` tomaba el 1-ene (día sin operación).**
+- *Alternativas:* NaN en `lag_1`; declarar el día y rezagar al último día con operación; ajustar el
+  modelo (más historia). El texto anterior hablaba de "leakage"; era incorrecto: el calendario de
+  cierres es conocimiento anterior al corte (como el 25-dic).
+- *Decisión:* `dias_sin_operacion: ["01-01", "12-25"]` pasó a `config/model.yaml` (una sola lista;
+  `validation.yaml` ya no la duplica y `calidad_datos` la lee de ahí). En `features.construir_features`
+  esos días son faltantes para todas las features de ventas (rezagos, medias, mediana, desviación,
+  proporción de ceros, mismo día de la semana) y `lag_1` es el del último día con operación anterior
+  al origen. El objetivo `y` sigue siendo la venta real. Misma regla en entrenamiento e inferencia.
+- *Prueba:* `test_dia_sin_operacion_no_se_usa_como_lag_1` y
+  `test_lag_1_es_el_del_ultimo_dia_con_operacion_...`.
+
+**M2 — serie nueva (tienda 52) con pronóstico y pedido 0.**
+- *Decisión:* si una serie no tiene ventas en la ventana, `dias_desde_venta` es `min(ventana+1, edad
+  de la serie + 1)`, no siempre `ventana+1`. Una serie abierta hace 4 días (filas en 0) no se trata
+  como "sin ventas hace un año" y la regla de ceros (> 56 días) no la fuerza a 0. Las series con
+  más de 56 días de historia sin ventas siguen en 0. El arranque en frío (sin historia de ventas) lo
+  resuelve el modelo con lo que haya; no hay un prior por tienda/familia (limitación).
+- *Prueba:* `test_serie_nueva_no_se_trata_como_serie_sin_ventas_hace_un_anio`.
+
+**M3 — datos del futuro.**
+- *Decisión:* regla dura en `validar_archivo`: `fecha_dato + lag_minimo_dias <= fecha_entrega`, con
+  `lag_minimo_dias` por fuente en `config/sources.yaml` (ventas, transacciones y petróleo: 0). Las
+  fuentes que se publican por adelantado (promociones, feriados, maestro) no tienen regla.
+  `lag_minimo_dias` es distinto de `lag_esperado_dias`: transacciones puede llegar antes que su
+  rezago nominal de 3 días, nunca antes del día que describe. Con la regla no hace falta tocar
+  `calidad_datos`: ningún archivo del futuro llega a `limpio/`.
+- *Pruebas:* `test_ventas_con_fecha_dato_posterior_a_la_entrega_van_a_cuarentena`,
+  `test_dato_del_futuro_no_desactiva_el_modo_degradado`.
+
+**M4 — maestro de tiendas parcial.**
+- *Alternativas:* advertencia (insuficiente: el snapshot igual reemplaza el maestro y las ventas
+  siguientes van a cuarentena); cuarentena; fusionar el parcial con el vigente.
+- *Decisión:* cuarentena si el snapshot omite tiendas del maestro vigente
+  (`tiendas_permitir_bajas: false` en `validation.yaml` para cambiarlo). Las altas sí se permiten.
+  Fusionar se descartó porque convierte un error del origen en un dato inventado.
+- *Prueba:* `test_maestro_de_tiendas_parcial_no_contamina_las_ventas_posteriores`.
+
+**M5 — `reproducir` no usaba el `modelo_id` del manifiesto.**
+- *Decisión:* `pronosticar_corte(..., modelo_id=...)`; `reproducir` pasa el del manifiesto. Un
+  baseline "sin registro" (no está en `data/models`) se sigue entrenando as-of el corte.
+- *Prueba:* `test_reproducir_usa_el_modelo_registrado_en_el_manifiesto`.
+
+**M6 — restos `rev=N.tmp`.**
+- *Decisión:* `publicacion.revisiones_publicadas` / `cortes_con_publicacion` aceptan solo
+  directorios `rev=<entero>` con manifiesto; los usan revisiones, seguimiento y el registro de
+  eventos. Un `rev=N.tmp/` se ignora y el siguiente intento lo reescribe.
+- *Pruebas:* `test_revision_interrumpida_se_puede_reintentar`,
+  `test_publicacion_interrumpida_no_cuenta_como_publicada`.
+
 ## Limitaciones conocidas
 
 - **Ventas censuradas:** `sales` es la demanda observada, censurada por quiebres de stock (no hay
@@ -491,11 +599,32 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
   cubre algo. La variante "cuantil de la demanda semanal" se evaluó y empeoró el costo (+9.1%).
 - **No determinismo de LightGBM entre plataformas:** distintos binarios/OpenMP (macOS vs Linux) dan
   parquet distintos. La idempotencia y `reproducir` valen dentro de un mismo entorno (Docker).
-- **Corte 2017-01-02 con WAPE 0.563:** las ventas del 2017-01-01 son casi cero (cierre de año) y
-  son el dato más reciente que ven las features (lags de 1 día y promedios cortos) en ese corte, de
-  modo que el pronóstico de los primeros días sale muy bajo. Es el único corte fuera del rango
-  0.107–0.196 del resto; no se corrige (corregirlo con una regla ad hoc sería leakage de conocimiento).
+- **Corte 2017-01-02, el de peor desempeño:** el rezago de 1 día de ese corte caía en el 2017-01-01
+  (ventas ~1% de un día normal, cierre de año). Era un defecto de las features, no una limitación
+  inevitable: se corrigió con `dias_sin_operacion` (§14, M1). Aun así sigue siendo el corte con
+  menos historia comparable (la ventana de entrenamiento nunca tuvo un lunes posterior al 1-ene) y
+  su WAPE queda por encima del resto; ver §14 para los números.
 - **Simulador, no la bandeja oficial:** las situaciones operativas son las inyectadas por el
   simulador (`bandeja_sim/_escenarios.csv`); un formato real distinto exige un adaptador en la ingesta
   y `config/sources.yaml`.
 - **DagsHub exige cuenta** para `dvc pull` (ver §2 y §13).
+- **B1 — feriados corregidos o tardíos:** la corrección o llegada tardía de un archivo trimestral de
+  feriados no marca los cortes cuya vista hacia adelante (hasta 30 días más allá del horizonte)
+  cambia, porque `fecha_dato` de un feriado es el inicio del trimestre. No se corrige: en la
+  práctica los feriados llegan un trimestre antes y no se corrigen. Prueba `xfail`:
+  `tests/revision/test_revisiones.py`.
+- **B2 — versión vigente por orden de ingesta:** la versión de un archivo se asigna por el orden en
+  que se ingiere, no por su fecha de entrega. Solo importa si un archivo aparece tarde en una
+  carpeta de entrega antigua (la bandeja es append-only por contrato). Prueba `xfail`.
+- **B3 — `lead_time + cobertura > horizonte`:** el pedido se trunca en silencio a los días que
+  existen en el pronóstico; no se valida la combinación en la configuración. Prueba `xfail`.
+- **B4 — τ redondeado a 0 o 1:** con `c_merma` extremo (< 0.005) el cuantil crítico redondea a 1.0
+  y no se rechaza la configuración. Prueba `xfail`.
+- **B5 — la mediana es obligatoria pero no se valida:** `cuantiles_reporte` sin 0.5 falla tarde
+  (`KeyError: 'q0.50'`). Prueba `xfail`.
+- **B6 — checks técnicos del criterio de reemplazo:** no verifican "filas completas" y una familia
+  ausente del challenger no bloquea la promoción. Hoy no ocurre porque champion y challenger se
+  evalúan sobre la misma matriz. Pruebas `xfail`.
+
+Las pruebas `xfail(strict=True)` de B1–B6 documentan cada limitación: si alguien la corrige, la
+prueba empieza a pasar y falla hasta quitarle la marca.

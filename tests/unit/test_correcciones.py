@@ -51,3 +51,25 @@ def test_cortes_afectados():
 
 def test_cortes_afectados_vacio():
     assert cortes_afectados(_ledger().iloc[0:0], [date(2017, 1, 2)], 14, 28) == []
+
+
+def test_llegada_fuera_de_plazo_solo_afecta_a_los_cortes_que_la_habrian_usado():
+    """Un tardío (primera versión válida fuera de plazo) con el lag de su fuente afecta a los
+    cortes con `fecha_dato + lag <= P < entrega`, no a los que solo la tienen en su horizonte."""
+    tardio = pd.DataFrame(
+        {
+            "fuente": ["ventas"],
+            "fecha_dato": pd.to_datetime(["2017-01-29"]),
+            "fecha_entrega": pd.to_datetime(["2017-01-31"]),
+            "es_correccion": [False],
+            "es_tardio": [True],
+        }
+    )
+    cortes = [date(2017, 1, 23), date(2017, 1, 30)]
+    # regla conservadora (sin lags): ambos cortes tienen el 01-29 en su horizonte
+    assert cortes_afectados(tardio, cortes, 14, 364) == cortes
+    # con el lag de ventas (1 día): solo el 01-30 pudo haber usado el dato del 01-29
+    assert cortes_afectados(tardio, cortes, 14, 364, {"ventas": 1}) == [date(2017, 1, 30)]
+    # una corrección conserva la regla conservadora
+    corr = tardio.assign(es_correccion=True, es_tardio=False)
+    assert cortes_afectados(corr, cortes, 14, 364, {"ventas": 1}) == cortes

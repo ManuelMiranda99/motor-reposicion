@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from datetime import date, timedelta
@@ -63,6 +64,40 @@ def directorio_publicacion(dir_data: Path, corte: date, revision: int) -> Path:
     return Path(dir_data) / "published" / f"corte={corte.isoformat()}" / f"rev={revision}"
 
 
+_PATRON_REV = re.compile(r"^rev=(\d+)$")
+
+
+def revisiones_publicadas(dir_data: Path, corte: date) -> dict[int, Path]:
+    """Revisiones **completas** de un corte: `{N: directorio rev=N}` con `manifest.json`.
+
+    Ignora los restos de una escritura interrumpida (`rev=N.tmp/`, que ya contiene un manifiesto
+    pero nunca se publicó): solo cuentan los directorios cuyo nombre es exactamente `rev=<entero>`.
+    """
+    base = directorio_publicacion(dir_data, corte, 1).parent
+    if not base.is_dir():
+        return {}
+    encontradas = {}
+    for d in base.iterdir():
+        m = _PATRON_REV.match(d.name)
+        if m and d.is_dir() and (d / "manifest.json").is_file():
+            encontradas[int(m[1])] = d
+    return dict(sorted(encontradas.items()))
+
+
+def cortes_con_publicacion(dir_data: Path) -> list[date]:
+    """Cortes que tienen al menos una revisión completa, en orden."""
+    base = Path(dir_data) / "published"
+    if not base.is_dir():
+        return []
+    cortes = []
+    for d in base.iterdir():
+        if d.is_dir() and d.name.startswith("corte="):
+            c = date.fromisoformat(d.name.removeprefix("corte="))
+            if revisiones_publicadas(dir_data, c):
+                cortes.append(c)
+    return sorted(cortes)
+
+
 def _sha256_archivo(ruta: Path) -> str:
     return hashlib.sha256(ruta.read_bytes()).hexdigest()
 
@@ -97,7 +132,7 @@ def calidad_datos(corte: date, dir_data: Path, cfgs: Configs) -> tuple[str, list
         )
     advertencias: list[str] = []
     huecos = fechas_faltantes(
-        "ventas", corte, cfg.ventana_huecos_dias, dir_data, cfg.dias_sin_operacion
+        "ventas", corte, cfg.ventana_huecos_dias, dir_data, cfgs.modelo.dias_sin_operacion
     )
     if huecos:
         lista = ", ".join(d.isoformat() for d in huecos)
@@ -141,13 +176,16 @@ def pronosticar_corte(
     datos_hasta: date | None = None,
     motivo: str | None = None,
     revision_de: int | None = None,
+    modelo_id: str | None = None,
 ) -> Path:
     """Genera y publica el pronóstico y el pedido de `corte`. Devuelve el directorio `rev=N`.
 
     `datos_hasta` (opcional, `>= corte`) es la fecha as-of con la que se leen los datos: por
     defecto, el corte. Las features siguen ancladas al origen `corte` (solo usan lo anterior a
     él), pero ven las correcciones entregadas hasta `datos_hasta`. El modelo es el champion
-    vigente en `corte`. `motivo` y `revision_de` se anotan en el manifiesto de una revisión.
+    vigente en `corte`, salvo que se indique `modelo_id` (así reproduce `reproducir` una
+    publicación con el modelo registrado en su manifiesto, aunque después se promueva otro).
+    `motivo` y `revision_de` se anotan en el manifiesto de una revisión.
     """
     dir_data = Path(dir_data)
     if datos_hasta is not None and datos_hasta < corte:
@@ -158,12 +196,18 @@ def pronosticar_corte(
     huella = huella_entradas(visto, dir_data)
     sha_negocio, sha_modelo = hash_config(cfgs.negocio), hash_config(cfgs.modelo)
 
-    modelo_id = champion_vigente(corte, dir_data)
+    if modelo_id is None:
+        modelo_id = champion_vigente(corte, dir_data)
     if modelo_id is None:
         # Sin champion registrado: baseline entrenado en el momento, para no fallar.
         modelo_id = construir_modelo_id(
             BASELINE, corte, "sin-registro|" + hash_config(cfgs.modelo, cfgs.negocio), huella
         )
+    # baseline "sin registro": no está en `data/models`, se entrena as-of `corte`
+    sin_registro = (
+        modelo_id.startswith(BASELINE + "-") and not (dir_data / "models" / modelo_id).exists()
+    )
+    if sin_registro:
         advertencias.append("sin champion vigente: se entrenó el baseline en el momento")
 
     # --- inmutabilidad / idempotencia (antes de gastar cómputo)
@@ -187,7 +231,7 @@ def pronosticar_corte(
     # --- pronóstico
     datos = cargar_datos_asof(visto, dir_data)
     X = construir_features(datos, [corte], cfgs.modelo, cfgs.fuentes, con_objetivo=False)
-    if modelo_id.startswith(BASELINE + "-") and champion_vigente(corte, dir_data) is None:
+    if sin_registro:
         modelo = entrenar_modelo(BASELINE, corte, dir_data, cfgs, datos)
     else:
         modelo = cargar_modelo(modelo_id, dir_data)
