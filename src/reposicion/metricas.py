@@ -86,7 +86,7 @@ def _metricas_filas(g: pd.DataFrame, qs: list[str]) -> dict[str, float]:
     return m
 
 
-def _metricas_pedido(g: pd.DataFrame, cfg_negocio: ConfigNegocio) -> dict[str, float]:
+def metricas_pedido(g: pd.DataFrame, cfg_negocio: ConfigNegocio) -> dict[str, float]:
     g = g.dropna(subset=["y_cobertura"])
     if g.empty:
         return {"costo_total": float("nan"), "fill_rate": float("nan"), "pct_merma": float("nan")}
@@ -126,6 +126,6 @@ def resumen_metricas(
             sel = pd.Series(True, index=ped.index)
             for c, v in zip(por, clave if isinstance(clave, tuple) else (clave,), strict=True):
                 sel &= ped[c] == v
-            fila.update(_metricas_pedido(ped[sel], cfg_negocio))
+            fila.update(metricas_pedido(ped[sel], cfg_negocio))
         filas.append(fila)
     return pd.DataFrame(filas)

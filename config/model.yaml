@@ -9,3 +9,21 @@ backtest:
   paso_dias: 7
 ventana_features_dias: 364         # cuánta historia usan las features (para cortes_afectados)
 regla_ceros: {dias_sin_ventas: 56} # serie sin ventas en 56 días → pronóstico 0
+objetivo_transformado: log1p       # el modelo se entrena en log1p(y) y se predice con expm1
+lightgbm:                          # un Booster por cuantil (objective=quantile, alpha=q)
+  learning_rate: 0.05
+  num_leaves: 63
+  min_data_in_leaf: 100
+  feature_fraction: 0.8
+  lambda_l2: 1.0
+  num_boost_round: 400
+  num_threads: 4                   # fijo: el determinismo depende de él
+  deterministic: true
+  force_row_wise: true
+  seed: 2017
+  verbose: -1
+# Variante "cuantil de la demanda semanal" (suma de la cobertura como objetivo); solo se compara.
+lightgbm_semanal:
+  num_leaves: 31
+  min_data_in_leaf: 50
+  num_boost_round: 300

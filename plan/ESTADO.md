@@ -10,7 +10,7 @@ cada fase, en el mismo PR.
 | 2 — Simulador de bandeja | `feat/bandeja-sim` | ✅ Hecha | #3 | `data/historico` + `bandeja_sim` en DVC; 14 escenarios |
 | 3 — Ingesta, ledger, validación, as-of | `feat/ingesta` | ✅ Hecha | #6 | 853 archivos: 847 válidos, 5 cuarentena, 1 duplicado; simulador corregido (promos tienda 52) |
 | 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ✅ Hecha | #7 | Baseline en el corte 2017-08-14: WAPE 0.143, cobertura P10–P90 84.3%, fill rate 97.4% |
-| 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ⏳ Pendiente | | |
+| 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ✅ Hecha | #8 | LightGBM vs baseline (corte 2017-08-14): WAPE 0.121 vs 0.143, costo -20.4%; champion inicial promovido el 2017-01-02; variante semanal descartada (+9.1% costo) |
 | 6 — Airflow 3 en Docker | `feat/airflow` | ⏳ Pendiente | | |
 | 7 — Monitoreo, correcciones, e2e | `feat/monitoreo` | ⏳ Pendiente | | |
 | 8 — Reproducibilidad, docs, entrega | `feat/docs` | ⏳ Pendiente | | |
@@ -25,3 +25,7 @@ documentarlo en `DECISIONES.md`.
 - F3: se corrigió el simulador para que no entregue promociones de la tienda 52 antes de su maestro (mantiene tienda desconocida = cuarentena).
 - F4: costos en tres grupos (perecederos τ=0.40, no perecederos τ=0.91, default τ=0.67); cobertura 7 días con lead time 0; pedido = suma de cuantiles diarios τ; entrenamiento con las últimas 52 semanas de orígenes.
 - F4: τ se redondea a 2 decimales (el modelo se entrena en el mismo cuantil que usa el pedido).
+- F5: criterio de reemplazo multicriterio (`config/promotion.yaml`): costo total baja ≥ 3%, WAPE no empeora > 1%, cobertura P10–P90 en [0.70, 0.90], ninguna familia con > 5% del volumen empeora su costo > 10%, checks técnicos.
+- F5: reentrenamiento mensual (primer lunes del mes) + manual; el pronóstico semanal usa el champion vigente.
+- F5: backtest de LightGBM con los 8 orígenes (un origen tarda ~1 min; el backtest completo cabe en el límite de ~20 min).
+- F5: variante "cuantil de demanda semanal" entrenada y comparada; el pedido por defecto no cambia (resultado en `DECISIONES.md` y `reports/comparacion_modelos.md`).

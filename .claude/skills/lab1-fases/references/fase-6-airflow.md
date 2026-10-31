@@ -133,6 +133,13 @@ porque el timetable por defecto es `CronTriggerTimetable`. Calcula el corte como
 > Ojo: **no** uses `0 4 1-7 * 1`. Si se dan día del mes y día de la semana a la vez, cron los
 > combina con O: correría del 1 al 7 de cada mes **y** todos los lunes.
 
+- **Contrato de la fase 5:** `entrenar_y_evaluar(corte, dir_data, cfgs)` y
+  `pronosticar_corte(corte, dir_data, cfgs, revision=1)` (ver `contexto.md` §10) reciben
+  `cfgs = cargar_configs(<repo>/config)` (incluye `validation.yaml` y `promotion.yaml`) y leen
+  `asof(corte)`: ambas tareas deben ir precedidas de `asegurar_ingesta(corte)`, también en el DAG
+  `entrenamiento` (corre a las 04:00, antes de la ingesta diaria). `PublicacionInmutable` no se
+  reintenta: es una señal para la fase 7 (revisión nueva), no un error transitorio. En la imagen:
+  `libgomp1` y `lightgbm` (ya está en `requirements.txt`); define `REPOSICION_GIT_COMMIT`.
 - `pronostico_semanal` no depende de otros DAGs, porque `asegurar_ingesta` deja todo listo hasta
   `corte` por su cuenta.
 - El orden en un mismo lunes (entrenamiento 04:00 → ingesta 05:00 → pronóstico 06:00 →

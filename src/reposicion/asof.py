@@ -6,13 +6,14 @@ fecha de corte siempre llega como parámetro; nunca se consulta el reloj.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Collection
 from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
 
-from reposicion.almacen import leer_limpio
+from reposicion.almacen import leer_ledger, leer_limpio
 
 
 def asof(fuente: str, corte: date, dir_data: Path) -> pd.DataFrame:
@@ -60,3 +61,19 @@ def fechas_faltantes(
         if d not in visibles and d.strftime("%m-%d") not in dias_sin_operacion:
             huecos.append(d)
     return huecos
+
+
+def huella_entradas(corte: date, dir_data: Path) -> str:
+    """sha256 de las filas del ledger entregadas hasta `corte`, ordenadas.
+
+    Identifica exactamente qué archivos de la bandeja (con su contenido, por `sha256`) había
+    disponibles en el corte: una corrección o un archivo tardío cambian la huella.
+    """
+    ledger = leer_ledger(dir_data)
+    ledger = ledger[ledger["fecha_entrega"] <= pd.Timestamp(corte)]
+    cols = ["fuente", "fecha_dato", "fecha_entrega", "archivo", "sha256", "estado", "version"]
+    ledger = ledger[cols].astype(str).sort_values(cols).reset_index(drop=True)
+    h = hashlib.sha256()
+    for fila in ledger.itertuples(index=False):
+        h.update("|".join(fila).encode("utf-8") + b"\n")
+    return h.hexdigest()

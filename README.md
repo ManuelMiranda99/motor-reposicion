@@ -89,6 +89,24 @@ pinball, cobertura P10–P90 y, sobre el pedido, costo newsvendor, fill rate y %
 costos, la cobertura y el lead time del pedido están en `config/business.yaml`; el horizonte, los
 cuantiles y la ventana de entrenamiento, en `config/model.yaml`.
 
+### Modelos: entrenar, comparar y pronosticar (fase 5)
+
+LightGBM necesita OpenMP. En macOS: `brew install libomp` (en Docker, `libgomp1`).
+
+```bash
+python -m reposicion.cli comparar --corte 2017-08-14    # backtest baseline vs LightGBM → reports/comparacion_modelos.md
+python -m reposicion.cli entrenar --corte 2017-01-02    # entrena el challenger y decide si reemplaza al champion
+python -m reposicion.cli pronosticar --corte 2017-03-13 # publica data/published/corte=.../rev=1/ (idempotente)
+```
+
+- `comparar` hace el backtest de ambos modelos y de la variante "cuantil de la demanda semanal" y
+  escribe el reporte (tablas global, por familia y por horizonte, y la decisión de promoción).
+- `entrenar` registra el modelo en `data/models/` y en `data/models/registro.parquet`. El criterio
+  de reemplazo está en `config/promotion.yaml`. Si no hay champion, el baseline lo es por defecto.
+- `pronosticar` usa el champion vigente en el corte (`champion_vigente`), escribe
+  `pronostico.parquet`, `pedido.parquet` y `manifest.json` (sin marcas de tiempo) y nunca
+  sobrescribe una revisión publicada con otras entradas (`--revision N` para una nueva).
+
 ## Estructura
 
 | Ruta | Contenido |
