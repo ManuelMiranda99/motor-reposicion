@@ -1,8 +1,10 @@
 # Decisiones técnicas y de producto
 
 Cada decisión registra el contexto, las alternativas consideradas, la decisión tomada y su
-justificación. Las decisiones sobre disponibilidad de la información en el tiempo, validación de datos
-y manejo de correcciones se desarrollarán en las fases 2 y 3.
+justificación. Las decisiones que el enunciado destaca están en las §5 (disponibilidad de la
+información en el tiempo), §6 (validación de datos) y §7 (correcciones); la §12 cierra el ciclo con
+el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
+[limitaciones conocidas](#limitaciones-conocidas).
 
 ## Índice
 
@@ -21,6 +23,8 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 10 | Criterio de reemplazo de modelo, registro y publicación offline | Aceptada |
 | 11 | Orquestación con Airflow y versionado de publicaciones | Aceptada |
 | 12 | Seguimiento del desempeño, revisiones por corrección y alertas | Aceptada |
+| 13 | Reproducibilidad y entrega (fase 8) | Aceptada |
+| — | Limitaciones conocidas | Documentadas |
 
 ---
 
@@ -419,3 +423,79 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   es mensual + manual por decisión de la fase 5).
 - **Limitación conocida:** el WAPE del backtest se calcula con datos revisados y 8 orígenes; el del
   seguimiento es el de la operación real con datos as-of, así que se esperan diferencias.
+
+## 13. Reproducibilidad y entrega (fase 8)
+
+- **Contexto:** el docente clonará el repo, hará `dvc pull`, levantará Airflow siguiendo solo el
+  README y operará un periodo no publicado. Si `dvc pull` falla, el proyecto no es reproducible.
+- **`reproducir --corte T [--rev N]` (`reproduccion.py`).** Recalcula una publicación en un
+  directorio temporal (con `published/` vacío y enlaces simbólicos al resto de `data/`) usando la
+  misma huella de entradas: ledger filtrado a `fecha_entrega <= datos_hasta`, donde `datos_hasta` es
+  el del manifiesto (en `rev=1` no existe y vale el corte), el `modelo_id` registrado y la configuración
+  actual (cuyo hash se compara con el del manifiesto). Compara los sha256 de `pronostico.parquet` y
+  `pedido.parquet` y los campos del manifiesto (`modelo_id`, calidad, advertencias, huella, hashes de
+  configuración, filas y series). Sale con código 1 si algo difiere. Si `git rev-parse HEAD` difiere
+  del `git_commit` del manifiesto, avisa con el comando exacto (`git worktree add`). Alternativa
+  descartada: reentrenar el modelo en la reproducción (más lento y no determinista entre entornos; el
+  modelo registrado es parte de las entradas, identificado por su id).
+- **Mismo entorno.** LightGBM no es bit a bit idéntico entre macOS y Linux. El estado entregado se
+  generó en Docker (Linux) y se reproduce en Docker. En macOS, `modelo_id`, huella y baseline
+  coinciden, pero el sha256 de los parquet de LightGBM puede diferir.
+- **`git_commit` de los manifiestos.** El backfill entregado se corrió con `REPOSICION_GIT_COMMIT` =
+  commit de `main` previo a la fase 8 (`e2ed976`), porque el commit de una rama de PR desaparece en
+  el squash merge. La fase 8 no cambia la lógica que genera pronósticos (solo agrega `reproducir`).
+- **Acceso del docente a DagsHub (decisión del usuario).** El docente usará **su propia cuenta de
+  DagsHub** y `tools/dvc_auth.sh` (el repo es público, el token solo necesita lectura). No se migra
+  el remoto a un bucket público (ver §2). **Pendiente del usuario:** confirmar con el docente que lo
+  acepta y, si es posible, probar con una cuenta distinta a la del dueño.
+- **Estado de datos en `main` (decisión del usuario).** Se commitean los `.dvc` de `data/` del
+  final del **backfill completo** 2017-01-02 → 2017-08-14 (histórico, modelos, publicados y
+  seguimiento) y se hace `dvc push` de todo, de modo que `dvc pull` trae el estado completo y se puede
+  reproducir cualquier corte. Se verificó en un clon limpio (`dvc status -c`). Alternativa descartada:
+  entregar solo las entradas (obligaría al docente a regenerar horas de entrenamiento).
+  Para operar otra bandeja desde cero, `tools/limpiar_salidas.sh` borra las salidas regenerables.
+- **Tag `entrega-lab1` (decisión del usuario).** No se crea desde la automatización: lo crea el
+  usuario tras revisar (`git switch main && git pull && git tag -a entrega-lab1 -m "Entrega
+  Laboratorio 1" && git push origin entrega-lab1`).
+- **Incidente del primer backfill (causa raíz, descartada la hipótesis de deadlock).** El primer
+  intento del backfill falló en el run `entrenamiento` 2017-03-06: la tarea quedó 2 h 17 min sin
+  registrar nada tras "entrenando lgbm…" y terminó `failed`. No fue un deadlock de OpenMP ni falta de
+  memoria: el `pmset` del host muestra que el Mac entró en hibernación (batería al 1%, "Low Power
+  Sleep") a las 03:58 y despertó a las 06:14; la VM de Docker se congeló, el reloj saltó y Airflow marcó
+  la tarea como fallida al despertar. Como los reentrenamientos son secuenciales y cada decisión
+  champion/challenger depende de la anterior, un run fallido en medio dejaría un estado incoherente
+  (el de abril se habría decidido sin el de marzo). Se descartó repararlo en el sitio: se borraron las
+  salidas regenerables y la base de Airflow y se **repitió el backfill completo desde cero** con el
+  equipo conectado a la corriente y `caffeinate`. El estado entregado proviene de esa segunda corrida,
+  sin runs fallidos. Mitigación documentada en el README: no dejar que la máquina hiberne durante un
+  backfill (los reentrenos toman horas).
+- **Ensayo de la evaluación docente:** clon limpio desde GitHub, README literal, bandeja distinta
+  (otra semilla, escenarios en otras fechas, dos correcciones seguidas del mismo dato y una fuente con
+  5 días de retraso). Resultado y fricciones corregidas en el README (sección "Evidencias").
+- **Capturas de la UI de Airflow:** no automatizadas (no había navegador controlable); la lista exacta
+  está en `reports/evidencia/README.md`.
+
+## Limitaciones conocidas
+
+- **Ventas censuradas:** `sales` es la demanda observada, censurada por quiebres de stock (no hay
+  datos de inventario). Los modelos aprenden ventas, no demanda; en series con quiebres frecuentes el
+  pronóstico subestima y el pedido sugerido también.
+- **Inventario inicial 0:** el pedido sugerido cubre 7 días sin descontar existencias (no hay fuente
+  de inventario). Es configurable (`config/business.yaml`) pero ningún dato real lo alimenta.
+- **Backtest con datos revisados:** el backtest que decide la promoción de modelos usa los datos
+  tal como están en el corte (con las correcciones ya aplicadas) y 8 orígenes; el seguimiento mide
+  la operación as-of. Por eso el WAPE del seguimiento y el del backtest difieren, y la alerta de
+  degradación compara contra el segundo con un umbral amplio (+20%).
+- **Suma de cuantiles:** el pedido es la suma de los cuantiles diarios τ de los 7 días de cobertura.
+  Eso supone comonotonía entre días; el cuantil τ de la suma es menor o igual, así que el pedido sobre-
+  cubre algo. La variante "cuantil de la demanda semanal" se evaluó y empeoró el costo (+9.1%).
+- **No determinismo de LightGBM entre plataformas:** distintos binarios/OpenMP (macOS vs Linux) dan
+  parquet distintos. La idempotencia y `reproducir` valen dentro de un mismo entorno (Docker).
+- **Corte 2017-01-02 con WAPE 0.563:** las ventas del 2017-01-01 son casi cero (cierre de año) y
+  son el dato más reciente que ven las features (lags de 1 día y promedios cortos) en ese corte, de
+  modo que el pronóstico de los primeros días sale muy bajo. Es el único corte fuera del rango
+  0.107–0.196 del resto; no se corrige (corregirlo con una regla ad hoc sería leakage de conocimiento).
+- **Simulador, no la bandeja oficial:** las situaciones operativas son las inyectadas por el
+  simulador (`bandeja_sim/_escenarios.csv`); un formato real distinto exige un adaptador en la ingesta
+  y `config/sources.yaml`.
+- **DagsHub exige cuenta** para `dvc pull` (ver §2 y §13).

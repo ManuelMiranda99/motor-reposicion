@@ -12,14 +12,39 @@ diariamente en:
 
 Se basa en los datos de Corporación Favorita ([Kaggle — Store Sales](https://www.kaggle.com/competitions/store-sales-time-series-forecasting/data)).
 
-> 🚧 En construcción. La sección "Operar con Airflow" explica cómo levantar el producto con Docker;
-> "Reproducir un pronóstico publicado" se completará en la fase 8.
+Ruta rápida para quien evalúa: [Inicio rápido](#inicio-rápido-evaluación-docente) → [Operar con
+Airflow](#operar-con-airflow) → [Otro periodo u otra bandeja](#otro-periodo-u-otra-bandeja-por-ejemplo-el-periodo-no-publicado)
+→ [Reproducir un pronóstico publicado](#reproducir-un-pronóstico-publicado) →
+[Evidencias](#evidencias).
+
+## Inicio rápido (evaluación docente)
+
+Probado en un clon limpio (macOS, Docker Desktop con ≥ 6 GB de RAM; ver
+[Ensayo](#ensayo-de-la-evaluación-docente)). Necesitas: Git, Python 3.11, Docker con Compose v2 y una
+cuenta gratuita de DagsHub (para `dvc pull`, ver [Datos](#datos-dvc--dagshub)).
+
+```bash
+git clone https://github.com/ManuelMiranda99/motor-reposicion.git && cd motor-reposicion
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -e .
+./tools/dvc_auth.sh                  # pide el token de DagsHub (sin mostrarlo)
+dvc pull                             # entradas + estado entregado (~1 GB, unos minutos)
+cp .env.example .env                 # edita AIRFLOW_UID (el resultado de `id -u`) y, si quieres, los tokens
+docker compose up -d --build         # primera vez: construye la imagen (~3 min)
+```
+
+Abre <http://localhost:8080> (usuario `airflow`, contraseña `airflow`) y despausa los cuatro DAGs.
+Para operar **otra bandeja** (el periodo no publicado) sigue
+[esta sección](#otro-periodo-u-otra-bandeja-por-ejemplo-el-periodo-no-publicado).
 
 ## Requisitos
 
-- Python 3.11
-- Docker + Docker Compose (para Airflow)
-- Git y DVC
+- Python 3.11, Git y DVC (se instala con `pip install -r requirements.txt`).
+- Docker con Compose v2 (para Airflow). Docker Desktop: asigna **≥ 6 GB de RAM** (el reentrenamiento de
+  LightGBM sobre ~1.3 M filas lo necesita) y 10 GB de disco para la imagen y los datos.
+- Cuenta gratuita de DagsHub para `dvc pull` (ver Datos).
+- Puerto 8080 libre (UI de Airflow).
+- Solo para correr LightGBM **fuera** de Docker en macOS: `brew install libomp`.
 
 ## Desarrollo local
 
@@ -51,6 +76,18 @@ dvc pull
 | `data/kaggle/` | CSV originales de Kaggle (insumo del simulador de bandeja) |
 | `data/historico/` | Carga histórica inicial: todo lo entregado hasta 2017-01-01, un CSV por fuente |
 | `bandeja_sim/` | Bandeja simulada: `<fecha_entrega>/<fuente>_<fecha_dato>.csv` (2017-01-02 → 2017-09-01) |
+| `data/raw/`, `data/ledger/`, `data/limpio/` | Ingesta: copia de lo recibido, ledger y almacén limpio (estado al 2017-08-14) |
+| `data/backtest/`, `data/models/` | Backtests y modelos entrenados con su registro champion/challenger |
+| `data/published/corte=…/rev=…/` | Pronósticos y pedidos **publicados** (inmutables) con su `manifest.json` |
+| `data/monitoring/` | Seguimiento por corte de evaluación y reportes (`reportes/<corte>.md` + PNG) |
+
+`dvc pull` trae **todo el estado entregado**: el backfill completo 2017-01-02 → 2017-08-14, de modo
+que puedes inspeccionar o [reproducir](#reproducir-un-pronóstico-publicado) cualquier corte sin
+reentrenar. Solo las entradas (sin las salidas): `dvc pull data/kaggle.dvc data/historico.dvc bandeja_sim.dvc`.
+
+> **Pendiente de confirmar con el docente:** DagsHub no permite lectura anónima (401), así que la
+> evaluación usa **su propia cuenta de DagsHub** + `./tools/dvc_auth.sh` (el repo de GitHub es público, el
+> token solo necesita lectura). Ver [DECISIONES §2 y §13](DECISIONES.md).
 
 ### Regenerar la carga histórica y la bandeja simulada
 
@@ -89,7 +126,7 @@ pinball, cobertura P10–P90 y, sobre el pedido, costo newsvendor, fill rate y %
 costos, la cobertura y el lead time del pedido están en `config/business.yaml`; el horizonte, los
 cuantiles y la ventana de entrenamiento, en `config/model.yaml`.
 
-### Modelos: entrenar, comparar y pronosticar (fase 5)
+### Modelos: entrenar, comparar y pronosticar
 
 LightGBM necesita OpenMP. En macOS: `brew install libomp` (en Docker, `libgomp1`).
 
@@ -107,7 +144,7 @@ python -m reposicion.cli pronosticar --corte 2017-03-13 # publica data/published
   `pronostico.parquet`, `pedido.parquet` y `manifest.json` (sin marcas de tiempo) y nunca
   sobrescribe una revisión publicada con otras entradas (`--revision N` para una nueva).
 
-## Seguimiento y revisiones (fase 7)
+## Seguimiento y revisiones
 
 ```bash
 python -m reposicion.cli seguimiento --corte 2017-08-14 --revisiones   # emite revisiones y evalúa
@@ -123,22 +160,18 @@ python -m reposicion.cli seguimiento --corte 2017-08-14 --copiar-reporte  # adem
 - Si el WAPE móvil de 4 cortes supera en más de 20% al del backtest del champion, el reporte y el
   log traen una advertencia (no reentrena). Los umbrales están en `config/monitoreo.yaml`.
 
-## Operar con Airflow (fase 6)
+## Operar con Airflow
 
 Airflow 3.3.2 (imagen `apache/airflow:3.3.2-python3.11` + las dependencias del proyecto) con
 `LocalExecutor` en Docker Compose. Los DAGs solo orquestan: toda la lógica vive en
 `src/reposicion/` (`orquestacion.py`, `versionado.py`).
 
-### Levantar desde cero
+### Levantar (después del [Inicio rápido](#inicio-rápido-evaluación-docente))
 
-```bash
-git clone https://github.com/ManuelMiranda99/motor-reposicion.git && cd motor-reposicion
-python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt -e .
-./tools/dvc_auth.sh            # token de DagsHub (ver "Datos")
-dvc pull                       # baja data/historico, data/kaggle y bandeja_sim/
-cp .env.example .env           # completa AIRFLOW_UID (id -u) y, si quieres, los tokens
-docker compose up -d --build   # primera vez: construye la imagen (~2 min)
-```
+- `AIRFLOW_UID` en `.env` debe ser tu `id -u` (en macOS, 501; en Linux suele ser 1000): evita archivos
+  de `root` dentro del repo. Con el valor por defecto (50000) en Linux, `data/` queda con otro dueño.
+- Tras cambiar `requirements.txt` o `docker/Dockerfile`: `docker compose build` y
+  `docker compose up -d`.
 
 1. Abre <http://localhost:8080> (usuario `airflow`, contraseña `airflow`).
 2. Despausa los cuatro DAGs (interruptor de cada uno) o, por la línea de comandos:
@@ -146,11 +179,14 @@ docker compose up -d --build   # primera vez: construye la imagen (~2 min)
    Con `catchup=True`, Airflow ejecuta todos los cortes entre `REPOSICION_INICIO` y
    `REPOSICION_FIN`, sin intervención. (Alternativa: un backfill explícito,
    `airflow backfill create --dag-id pronostico_semanal --from-date 2017-01-02 --to-date 2017-08-14`.)
-3. Los resultados quedan en `data/published/corte=YYYY-MM-DD/rev=1/` y los registros en la rama
+3. Los resultados quedan en `data/published/corte=YYYY-MM-DD/rev=N/` y los registros en la rama
    `publicaciones` (`git log publicaciones`). Para bajar: `docker compose down` (conserva la base de
    Airflow; con `-v` también la borra).
 
-Requisito en macOS para correr LightGBM **fuera** de Docker: `brew install libomp`.
+**Tiempos:** un reentrenamiento (primer lunes de cada mes) tarda ~15–28 min en Docker y todo lo que
+escribe en `data/` está serializado (pool de 1 slot): un backfill de 8 meses toma varias horas
+(2017-01-02 → 2017-08-14: ver [Evidencias](#evidencias)); una ventana de 4 semanas, ~30 min. Los
+DAGs semanales se atrasan mientras entrena el primero; es normal (ver la columna *Duration* del Grid).
 
 ### Los DAGs
 
@@ -184,7 +220,42 @@ REPOSICION_FIN=2017-12-25           # último corte
 ```
 
 La bandeja se monta en `/opt/bandeja` con `:ro`: ningún proceso puede escribir en ella. Las fechas
-por defecto están en `config/operacion.yaml`.
+por defecto están en `config/operacion.yaml`. Dos casos:
+
+1. **La bandeja continúa la entregada** (fechas posteriores al 2017-08-14; la carga histórica es la
+   misma): no hay nada más que hacer. La ingesta agrega los archivos nuevos al ledger y los DAGs
+   producen los cortes nuevos sobre el estado que trajo `dvc pull`.
+2. **La bandeja es otra** que cubre fechas ya operadas (por ejemplo, la regenerada con otra semilla
+   para una prueba): los archivos con el mismo nombre pero otro contenido se leerían como
+   *correcciones* de lo ya ingerido. Para empezar de cero, antes de levantar Airflow:
+
+   ```bash
+   docker compose down                  # si estaba arriba
+   ./tools/limpiar_salidas.sh           # borra raw, ledger, limpio, backtest, models, published, monitoring
+   docker compose up -d
+   ```
+
+   (conserva `data/kaggle` y `data/historico`; lo borrado se recupera con `dvc pull`). Si la carga
+   histórica también cambia, reemplaza `data/historico/`.
+
+Si el periodo nuevo empieza tarde (por ejemplo, 5 semanas después del inicio de la bandeja), no hay
+que correr los cortes anteriores: `REPOSICION_INICIO` fija el primer corte y la ingesta del primer
+run lee todo lo entregado hasta ese día. El primer corte entrena el primer champion (el baseline es el
+champion inicial hasta que LightGBM lo supera).
+
+Generar una bandeja distinta con el simulador (otra semilla y escenarios en otras fechas):
+
+```bash
+cp config/simulador.yaml /ruta/simulador_alt.yaml     # edita `semilla` y `escenarios`
+python tools/simulate_bandeja.py --config /ruta/simulador_alt.yaml --bandeja /ruta/bandeja_alt \
+    --historico /ruta/historico_alt
+```
+
+(La carga histórica no depende de la semilla; usa `--historico` para no pisar `data/historico`.)
+
+Los escenarios que cubre el sistema (y se pueden inyectar en el simulador): archivo faltante, tardío,
+corrección (también dos correcciones seguidas del mismo día), duplicado idéntico, inválido con o sin
+reentrega, tienda nueva y fuente atrasada más allá de su tolerancia (`config/sources.yaml`).
 
 ### Versionado y push
 
@@ -207,10 +278,96 @@ warning (no falla). Opciones: `siempre` (falla sin credenciales) y `nunca`.
 | `docker/`, `docker-compose.yaml` | Imagen y servicios de Airflow (LocalExecutor) |
 | `config/` | Configuración versionada (costos de negocio, modelo, validación) |
 | `tests/` | Pruebas (pytest) |
-| `tools/` | Utilidades (simulador de bandeja) |
-| `plan/` | Plan de trabajo del laboratorio |
-| `DECISIONES.md` | Decisiones técnicas y de producto |
+| `tools/` | Utilidades: `simulate_bandeja.py`, `dvc_auth.sh`, `limpiar_salidas.sh` |
+| `reports/` | Evidencias versionadas en git (comparación de modelos, seguimiento, capturas) |
+| `plan/` | Plan de trabajo del laboratorio y `ESTADO.md` |
+| `DECISIONES.md` | Decisiones técnicas y de producto (y limitaciones conocidas) |
+| `CLAUDE.md` | Reglas del proyecto y comandos |
+
+## Dónde está cada cosa
+
+| Qué | Dónde |
+|---|---|
+| Pronóstico diario por cuantiles | `data/published/corte=YYYY-MM-DD/rev=N/pronostico.parquet` |
+| Pedido sugerido (tienda × familia) | `data/published/corte=YYYY-MM-DD/rev=N/pedido.parquet` |
+| Manifiesto (modelo, commit, huella de entradas, sha256, calidad, advertencias) | `.../manifest.json` |
+| Seguimiento de lo publicado vs. lo real | `data/monitoring/reportes/<corte>.md` (copia final: `reports/seguimiento.md`) |
+| Modelos y su historial champion/challenger | `data/models/`, `data/models/registro.parquet` |
+| Archivos en cuarentena, correcciones y tardíos | `data/ledger/ingesta.parquet` (`estado`, `version`, `es_correccion`, `es_tardio`) |
+| Registro versionado de cada evento | rama `publicaciones`: `git log publicaciones -- registro/<corte>/` |
+
+Cada `rev=N` es inmutable: una corrección de datos emite `rev=N+1` y deja intacta la anterior
+(`manifest.json` de las revisiones trae `datos_hasta`, `emitido_en`, `revision_de` y `motivo`).
 
 ## Reproducir un pronóstico publicado
 
-_Pendiente (fase 8)._
+Cada publicación guarda en su `manifest.json` el `git_commit` del código, la **huella de las
+entradas** (sha256 de los archivos de la bandeja entregados hasta la fecha de lectura), los hashes de
+la configuración, el `modelo_id` y el sha256 de sus archivos. `reproducir` vuelve a calcularlo en un
+directorio temporal (sin tocar `data/published`) y compara:
+
+```bash
+python -m reposicion.cli reproducir --corte 2017-03-13            # rev=1
+python -m reposicion.cli reproducir --corte 2017-02-06 --rev 2    # una revisión
+# → REPRODUCIDO ✓   (o NO REPRODUCIDO ✗ con las diferencias; código de salida 1)
+```
+
+- Una revisión se reproduce con el `datos_hasta` de su manifiesto; en `rev=1` el manifiesto no trae
+  `datos_hasta` y vale el corte. Se usa el modelo registrado (`modelo_id`) y el ledger filtrado a
+  `fecha_entrega <= datos_hasta`, así que una corrección llegada después **no** cambia el resultado.
+- Si `git rev-parse HEAD` difiere del `git_commit` del manifiesto, el comando avisa con la receta
+  exacta: `git worktree add ../repro <git_commit> && cd ../repro && dvc pull` y se repite el comando
+  allí. El commit correcto de un corte también está en la rama `publicaciones`:
+  `git log publicaciones -- registro/2017-03-13/` (ahí se ven el commit del evento y los `.dvc`
+  de ese momento: `git show <commit>:data/published.dvc`).
+- **Mismo entorno:** LightGBM no es bit a bit idéntico entre macOS y Linux (distinto OpenMP y
+  aritmética de punto flotante). Los publicados de este repo se generaron **en Docker (Linux)**:
+  reprodúcelos en Docker (`docker compose --profile debug run --rm airflow-cli python -m
+  reposicion.cli reproducir --corte 2017-03-13`) o en Linux. En macOS, el `modelo_id`, la huella
+  de entradas y los pedidos del baseline coinciden, pero los parquet de LightGBM pueden diferir en los
+  últimos decimales y el comando lo reportará como diferencia de sha256.
+
+## Evidencias
+
+| Evidencia | Archivo |
+|---|---|
+| Baseline vs. LightGBM (backtest, decisión de promoción) | [`reports/comparacion_modelos.md`](reports/comparacion_modelos.md) |
+| Seguimiento final del desempeño (métricas por corte, familia y horizonte, alertas) | [`reports/seguimiento.md`](reports/seguimiento.md) |
+| Capturas de la UI de Airflow (Grid, cuarentena, revisión por corrección) | [`reports/evidencia/`](reports/evidencia/README.md) |
+| Decisiones y limitaciones | [`DECISIONES.md`](DECISIONES.md) |
+| Registro de cada evento semanal/mensual | rama `publicaciones` |
+
+### Backfill entregado (2017-01-02 → 2017-08-14, Airflow en Docker)
+
+El estado de `data/` en `main` es el de un único backfill completo, desde cero, con los cuatro DAGs
+despausados a la vez (sin intervención):
+
+| Concepto | Resultado |
+|---|---|
+| Runs | 324, todos en verde: 225 `ingesta_validacion` (diarios) + 33 × 3 DAGs semanales |
+| Duración | 3 h 53 min de reloj (12:38 → 16:31 UTC), con las tareas de escritura serializadas |
+| Reentrenamientos | 8 (primer lunes de cada mes, enero–agosto), ~15–28 min cada uno |
+| Promociones de modelo | baseline como champion inicial y LightGBM promovido el 2017-01-02; los 7 challengers siguientes no superaron el criterio (`config/promotion.yaml`) y el champion vigente al 2017-08-14 es `lgbm-2017-01-02-496d76f4` |
+| Publicaciones | 36: 33 `rev=1` + 3 revisiones por corrección (`2017-02-06/rev=2`, `2017-03-13/rev=2`, `2017-05-08/rev=2`); 7 de los `rev=1` salen `degradada` (ventas atrasadas o faltantes, promociones que acaban el 08-15) |
+| Ingesta | 834 archivos hasta el 08-14: 828 válidos, 5 en cuarentena (ventas 05-10, transacciones 06-05, ventas 06-21, promociones 07-20, ventas 07-26), 1 duplicado idéntico |
+| Registro en git | 74 commits en la rama `publicaciones` (33 pronósticos + 33 seguimientos + 8 modelos) |
+| Alertas de degradación | 1 (corte 2017-01-30: el WAPE móvil incluye el corte 2017-01-02, de WAPE 0.563 por el 01-01 casi en cero) |
+| Desempeño (seguimiento al 2017-08-14) | WAPE por corte 0.107–0.196 (salvo el corte 01-02); WAPE móvil de 4 cortes 0.1370 vs 0.1742 del backtest; cobertura P10–P90 0.69–0.82 |
+| Reproducción | `reproducir` da `REPRODUCIDO ✓` (en Docker) para `2017-03-13/rev=1`, `2017-08-14/rev=1`, `2017-02-06/rev=2`, `2017-03-13/rev=2` y `2017-05-08/rev=2` |
+
+Un primer intento del backfill falló por un incidente ajeno al código (el equipo hibernó) y se repitió
+completo desde cero: ver [DECISIONES §13](DECISIONES.md).
+
+### Ensayo de la evaluación docente
+
+ENSAYO_RESUMEN
+
+### Pruebas
+
+```bash
+source .venv/bin/activate
+ruff check . && ruff format --check . && pytest      # el CI corre lo mismo
+```
+
+Incluyen pruebas unitarias, e2e sin Airflow (`tests/integration/`: idempotencia, backfill = operación
+en vivo, sin *leakage*, correcciones y `reproducir`) y de los DAGs (`tests/test_dags.py`).

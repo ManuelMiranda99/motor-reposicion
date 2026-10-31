@@ -16,6 +16,43 @@ ruff check . && ruff format --check .   # lint (CI falla si no pasa)
 pytest                                  # pruebas
 ```
 
+### Datos (DVC)
+
+```bash
+./tools/dvc_auth.sh && dvc pull         # token de DagsHub (.dvc/config.local, fuera de git)
+dvc add data/<dir> && dvc push          # tras cambiar datos versionados; commitea los .dvc
+./tools/limpiar_salidas.sh              # borra salidas regenerables de data/ (no kaggle/historico)
+```
+
+### CLI (`python -m reposicion.cli <subcomando>`, dentro del venv)
+
+```bash
+ingestar --hasta 2017-09-01             # bandeja → raw/ledger/limpio (idempotente)
+backtest --modelo baseline --corte 2017-08-14
+entrenar --corte 2017-01-02             # challenger LightGBM vs champion
+comparar --corte 2017-08-14             # → reports/comparacion_modelos.md
+pronosticar --corte 2017-03-13 [--revision N]
+seguimiento --corte 2017-08-14 [--revisiones] [--copiar-reporte]   # → reports/seguimiento.md
+reproducir --corte 2017-03-13 [--rev N] # recalcula un publicado: REPRODUCIDO ✓ / diferencias
+python tools/simulate_bandeja.py --limpiar   # regenera bandeja_sim/ y data/historico/
+```
+
+### Airflow (Docker Compose)
+
+```bash
+cp .env.example .env                    # AIRFLOW_UID=$(id -u); BANDEJA_PATH, REPOSICION_INICIO/FIN, tokens
+docker compose up -d --build            # UI en http://localhost:8080 (airflow / airflow)
+docker compose build                    # tras cambiar requirements*.txt o docker/Dockerfile
+docker compose --profile debug run --rm -T airflow-cli airflow dags unpause pronostico_semanal
+docker compose --profile debug run --rm -T airflow-cli airflow dags list-runs pronostico_semanal
+docker compose down                     # conserva la base; `down -v` la borra
+```
+
+Las salidas de los DAGs (`data/`) se versionan con DVC y su registro va a la rama `publicaciones`
+(nunca a `main`). El estado entregado en `main` es el del backfill completo 2017-01-02 → 2017-08-14,
+generado en Docker (LightGBM no es bit a bit igual entre macOS y Linux: `reproducir` se corre en
+Docker/Linux).
+
 ## Reglas no negociables
 
 1. **La lógica vive en `src/reposicion/`** y tiene pruebas en `tests/`. Los archivos de `dags/` solo

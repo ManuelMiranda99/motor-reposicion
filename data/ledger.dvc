@@ -1,6 +1,6 @@
 outs:
-- md5: 13e121c05cb21eeeb520b5ee77127260.dir
-  size: 42268
+- md5: 1f78393d8490dff6c5563e135c2e70e2.dir
+  size: 41354
   nfiles: 1
   hash: md5
   path: ledger

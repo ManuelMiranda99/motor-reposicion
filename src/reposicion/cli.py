@@ -16,6 +16,7 @@ from reposicion.ingesta import ingestar
 from reposicion.modelos import fabrica
 from reposicion.parametros import cargar_configs
 from reposicion.publicacion import pronosticar_corte
+from reposicion.reproduccion import PublicacionNoEncontrada, reproducir
 from reposicion.revisiones import emitir_revisiones
 from reposicion.seguimiento import dir_reportes, evaluar_publicados, publicar_reporte_reciente
 from reposicion.validacion import cargar_validacion
@@ -82,6 +83,18 @@ def _cmd_seguimiento(args: argparse.Namespace) -> None:
         print(f"copia: {publicar_reporte_reciente(dir_data, rutas.RAIZ_REPO / 'reports')}")
 
 
+def _cmd_reproducir(args: argparse.Namespace) -> None:
+    cfgs = cargar_configs(rutas.RAIZ_REPO / "config")
+    dir_data = Path(args.data) if args.data else rutas.dir_data()
+    try:
+        res = reproducir(date.fromisoformat(args.corte), args.revision, dir_data, cfgs)
+    except PublicacionNoEncontrada as e:
+        raise SystemExit(f"ERROR: {e}") from e
+    print(res.texto())
+    if not res.reproducido:
+        raise SystemExit(1)
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="reposicion")
@@ -115,6 +128,11 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--copiar-reporte", action="store_true", help="copia el reporte a reports/")
     p.add_argument("--data", help="raíz de datos (por defecto REPOSICION_DATA)")
     p.set_defaults(func=_cmd_seguimiento)
+    p = sub.add_parser("reproducir", help="recalcula una publicación y compara con su manifiesto")
+    p.add_argument("--corte", required=True, help="corte publicado (YYYY-MM-DD)")
+    p.add_argument("--revision", "--rev", type=int, default=1, help="revisión (por defecto 1)")
+    p.add_argument("--data", help="raíz de datos (por defecto REPOSICION_DATA)")
+    p.set_defaults(func=_cmd_reproducir)
     args = parser.parse_args(argv)
     args.func(args)
 
