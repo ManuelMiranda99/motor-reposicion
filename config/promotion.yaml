@@ -1,0 +1,10 @@
+# Criterio de reemplazo champion/challenger — ver src/reposicion/registro.py (evaluar_promocion).
+# El challenger reemplaza al champion si cumple TODAS las reglas sobre el mismo backtest.
+costo_total_baja_min: 0.03         # el costo de negocio total baja al menos 3%
+wape_empeora_max: 0.01             # el WAPE no empeora más de 1% (relativo)
+cobertura_p10_p90: [0.70, 0.90]    # cobertura empírica del intervalo P10–P90
+familia_volumen_min: 0.05          # familias con más de 5% del volumen real...
+familia_costo_empeora_max: 0.10    # ...no pueden empeorar su costo más de 10%
+checks_tecnicos: true              # sin NaN, sin negativos, cuantiles monótonos, filas completas
+# Reentrenamiento (lo orquesta la fase 6): primer lunes de cada mes + manual.
+reentrenamiento: mensual_primer_lunes

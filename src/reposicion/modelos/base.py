@@ -46,3 +46,9 @@ def cuantiles_requeridos(cfg_modelo: ConfigModelo, cfg_negocio: ConfigNegocio) -
 def ordenar_cuantiles(df: pd.DataFrame) -> pd.DataFrame:
     """Ordena cada fila de menor a mayor para que los cuantiles no se crucen."""
     return pd.DataFrame(np.sort(df.to_numpy(), axis=1), index=df.index, columns=df.columns)
+
+
+def aplicar_regla_ceros(valores: np.ndarray, X: pd.DataFrame, dias_sin_ventas: int) -> np.ndarray:
+    """Serie sin ventas en más de `dias_sin_ventas` días → pronóstico 0 (única definición)."""
+    sin_ventas = X["dias_desde_venta"].to_numpy() > dias_sin_ventas
+    return np.where(sin_ventas, 0.0, valores)

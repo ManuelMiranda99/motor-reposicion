@@ -7,3 +7,4 @@ pydantic==2.14.1
 PyYAML==6.0.3
 # Versionado de datos/modelos (también lo usa Airflow para publicar).
 dvc[s3]==3.67.1
+lightgbm==4.7.0

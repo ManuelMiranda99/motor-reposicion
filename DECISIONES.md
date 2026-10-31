@@ -16,9 +16,9 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 5 | Disponibilidad de la información en el tiempo (as-of) | Aceptada |
 | 6 | Validación de datos: reglas duras vs. blandas | Aceptada |
 | 7 | Manejo de correcciones | Aceptada |
-| 8 | Modelos, validación temporal y métricas | Aceptada (baseline; LightGBM en la fase 5) |
+| 8 | Modelos, validación temporal y métricas | Aceptada (baseline y LightGBM) |
 | 9 | Pedido sugerido (newsvendor) | Aceptada |
-| 10 | Criterio de reemplazo de modelo | Pendiente |
+| 10 | Criterio de reemplazo de modelo, registro y publicación offline | Aceptada |
 | 11 | Versionado de publicaciones desde Airflow | Pendiente |
 
 ---
@@ -197,6 +197,48 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   El WAPE queda por debajo del rango de referencia (0.2–0.5) porque pondera por volumen y las
   familias grandes son muy estables.
 
+- **LightGBM (fase 5):** un `Booster` por cuantil (`objective=quantile`, `alpha=q`) sobre
+  `log1p(y)`, con la predicción en `expm1` recortada a ≥ 0 y la misma regla de ceros del baseline
+  (`aplicar_regla_ceros`, definida una sola vez en `modelos/base.py`). Cuantiles entrenados: los de
+  reporte ∪ los τ del negocio (0.10, 0.40, 0.50, 0.67, 0.90, 0.91). Parámetros en
+  `config/model.yaml`: `learning_rate 0.05`, `num_leaves 63`, `min_data_in_leaf 100`,
+  `feature_fraction 0.8`, `lambda_l2 1.0`, 400 rondas, `num_threads 4`, `deterministic`,
+  `force_row_wise`, semilla 2017; sin bagging ni early stopping, así que reentrenar con los mismos
+  datos da el mismo modelo (verificado por `test_lgbm_determinista`). Las features son todas las
+  del módulo `features` salvo el origen y el día objetivo; `store_nbr`, `family`, `city`, `state`,
+  `type` y `cluster` son categóricas con **categorías fijas guardadas en el modelo** (una tienda o
+  ciudad desconocida, como la tienda 52 si el modelo es anterior a su alta, pasa a "faltante" y no
+  falla). Se guarda en el formato de texto nativo (`modelo_<q>.txt` + `meta.json`), sin pickle. El
+  `Dataset` se construye una vez y se reutiliza en los seis cuantiles.
+- **Costo de LightGBM (medido):** un origen del backtest (seis cuantiles, ~1.27 M filas) tarda
+  ~75 s; el backtest completo de 8 orígenes, 606 s (~10 min) en un Mac de 10 núcleos con 4 hilos, por
+  debajo del umbral de ~20 min, así que **se mantienen los 8 orígenes y las 400 rondas**. El
+  baseline tarda 5 s y la variante semanal 23 s.
+- **Resultado en el corte 2017-08-14** (mismo backtest, 199,584 predicciones por modelo; detalle en
+  `reports/comparacion_modelos.md`):
+
+  | Métrica | Baseline | LightGBM |
+  |---|---|---|
+  | WAPE | 0.1425 | 0.1207 (-15.3%) |
+  | RMSLE | 0.4516 | 0.4000 |
+  | Cobertura P10–P90 | 0.8431 | 0.7991 |
+  | Costo de negocio total | 2,991,009 | 2,379,594 (-20.4%) |
+  | Fill rate | 0.9741 | 0.9724 |
+  | Merma | 10.6% | 6.0% |
+
+  LightGBM mejora al baseline en todas las métricas de error y cuesta menos; el fill rate casi no
+  cambia y la merma baja casi a la mitad. Cobertura ≈ 0.80 es la nominal de un P10–P90, es decir,
+  mejor calibrado que el baseline (0.84, intervalos algo anchos). Las familias que empeoran
+  (EGGS +10.6%, PREPARED FOODS +10.8%, BABY CARE +17.6%, BOOKS +84%) pesan en conjunto menos del
+  2% del volumen.
+- **Por qué no deep learning:** el costo (horas de entrenamiento y GPU) y el riesgo de
+  irreproducibilidad no se justifican: LightGBM ya reduce 20% el costo con 10 min de backtest en
+  CPU, entrena de forma determinista y sus archivos son texto plano. Con 1,782 series diarias y
+  features tabulares, los árboles son el estándar fuerte; un modelo secuencial agregaría pesos
+  binarios, GPU y menos interpretabilidad.
+- **Una limitación conocida:** `sales` es demanda censurada por quiebres de stock (no hay datos de
+  inventario); ningún modelo lo corrige.
+
 ## 9. Pedido sugerido (newsvendor)
 
 - **Contexto:** convertir el pronóstico por cuantiles en una cantidad a pedir por tienda × familia.
@@ -207,7 +249,74 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   la cobertura (7 días, lead time 0, es decir h = 1..7), menos el inventario inicial (0, porque no
   hay datos de inventario), redondeada hacia arriba y nunca negativa.
 - **Alternativas descartadas:** un solo grupo de costos (poco realista) y entrenar el cuantil τ de
-  la demanda semanal (más correcto, pero agrega modelos; se evaluará en la fase 5). La suma de
+  la demanda semanal (más correcto, pero agrega modelos; evaluada en la fase 5 y descartada, ver más abajo). La suma de
   cuantiles supone dependencia perfecta entre días y es, por tanto, conservadora.
 - **Si τ no está entre las columnas** del pronóstico, se interpola linealmente entre los cuantiles
   vecinos y se registra una advertencia.
+
+### Variante "cuantil de la demanda semanal" (evaluada en la fase 5)
+
+- **Qué es:** un modelo LightGBM con objetivo = suma de las ventas de la cobertura (7 días) y una
+  fila por (serie, origen), un cuantil por grupo de costos (0.40, 0.67, 0.91). Sus features son las
+  del origen más agregados de la semana (suma de la media por día de semana, de las promociones y
+  de los flags de feriado). Código en `modelos/semanal.py`; hiperparámetros propios en
+  `config/model.yaml` (`lightgbm_semanal`).
+- **Resultado** (mismos 8 orígenes, mismas series y solo los pedidos con los 7 días reales
+  conocidos; `reports/comparacion_modelos.md`):
+
+  | Pedido | Costo total | Fill rate | Merma |
+  |---|---|---|---|
+  | Baseline, suma de cuantiles diarios | 2,687,808 | 0.9750 | 10.9% |
+  | LightGBM, suma de cuantiles diarios (vigente) | **2,121,607** | 0.9715 | 5.9% |
+  | LightGBM, cuantil de la demanda semanal | 2,314,601 (+9.1%) | 0.9674 | 4.8% |
+
+- **Decisión:** el pedido por defecto **no cambia**. La suma de cuantiles diarios es mejor en
+  costo (9% menos) y en fill rate, y es la única que reutiliza los pronósticos diarios publicados
+  (el pedido semanal exigiría otro modelo en el registro y en el manifiesto). La variante reduce la
+  merma, pero a costa de más quiebres. Queda como mejora futura (por ejemplo, ajustar el τ del
+  modelo semanal por grupo) y **no** está disponible en la publicación.
+- **Nota metodológica:** la tabla global de métricas descarta los días sin dato real
+  (p. ej. 2017-07-04) antes de armar el pedido; la comparación de la variante exige los 7 días
+  reales, por eso sus costos totales difieren de los de la tabla global.
+
+## 10. Criterio de reemplazo de modelo, registro y publicación offline
+
+- **Contexto:** hace falta decidir cuándo un modelo nuevo reemplaza al vigente, poder reproducir
+  qué modelo se habría usado en cada fecha y publicar sin riesgo de pisar resultados.
+- **Criterio multicriterio** (`config/promotion.yaml`, `registro.evaluar_promocion`). El challenger
+  reemplaza al champion solo si, en el **mismo backtest**: (1) el costo de negocio total baja ≥ 3%;
+  (2) el WAPE no empeora más de 1% (relativo); (3) la cobertura P10–P90 está en [0.70, 0.90];
+  (4) ninguna familia con más del 5% del volumen real empeora su costo más de 10%; (5) pasa los
+  checks técnicos (sin NaN, sin negativos, cuantiles monótonos, sin duplicados). Cada regla deja un
+  motivo en el registro. Alternativas: solo costo ≥ 3% (ignora que un modelo puede ganar en
+  promedio y fallar en una familia grande) y umbrales propios.
+- **Reentrenamiento:** mensual (primer lunes del mes) y manual; el pronóstico semanal usa el
+  champion vigente (lo orquesta la fase 6). Alternativa: cada semana (más cómputo y más riesgo de
+  inestabilidad entre publicaciones).
+- **Registro** (`data/models/registro.parquet`, `data/models/<modelo_id>/`): `modelo_id` =
+  `<tipo>-<corte>-<hash8 de config+huella de entradas>`. Registrar es idempotente. El champion
+  inicial es el baseline: si no hay champion vigente, `entrenar_y_evaluar` lo registra y lo
+  promueve con el motivo "champion inicial" y, a continuación, evalúa al challenger contra él.
+- **`champion_vigente(corte)`:** último modelo con `promovido` y `fecha_promocion <= corte`
+  (empate de fecha: el promovido después). `fecha_promocion` es **el corte de la evaluación**, no
+  el reloj; así un backfill reproduce el modelo que se habría usado entonces. Es `<=` para que un
+  modelo promovido el lunes T se use en el pronóstico del mismo lunes. Verificado con
+  `test_champion_vigente_respeta_fecha`.
+- **Publicación** (`data/published/corte=T/rev=N/`): `pronostico.parquet`, `pedido.parquet` y
+  `manifest.json`. Escritura en `rev=N.tmp/` y `os.replace` del directorio. Modo degradado: si la
+  última venta disponible es anterior a `corte - 1 - max_dias_sin_ventas` → `DatosInsuficientes`;
+  huecos menores en ventas o una fuente no imprescindible atrasada más de su tolerancia →
+  `calidad = "degradada"` con advertencias, sin fallar. Los checks (filas = series × 14, sin NaN,
+  ≥ 0, monotonía) abortan la publicación si fallan.
+- **Inmutabilidad:** una revisión existente con la misma `huella_entradas`, los mismos hashes de
+  configuración y el mismo `modelo_id` es un no-op (bytes idénticos); si difiere en alguno, lanza
+  `PublicacionInmutable` y no toca nada (`test_publicado_inmutable`). Incluir el `modelo_id` en la
+  comparación es una decisión propia: un modelo distinto con las mismas entradas es otro pronóstico.
+  La fase 7 decide cuándo emitir `rev=N+1`.
+- **Manifiesto** (JSON, claves ordenadas, **sin timestamps**): `corte`, `revision`, `modelo_id`,
+  `calidad`, `advertencias`, `git_commit` (`REPOSICION_GIT_COMMIT` o `git rev-parse HEAD`),
+  `huella_entradas` (sha256 de las filas del ledger con `fecha_entrega <= corte`),
+  `sha256_business` y `sha256_model` (sha256 de la configuración canónica en JSON, no del texto del
+  YAML, para que comentarios y espacios no cuenten como cambios), `filas_pronostico`, `series` y
+  `sha256_archivos`. `git_commit` no entra en la comparación de idempotencia: repetir el corte desde
+  otro commit con las mismas entradas no reescribe la publicación.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from reposicion.config import cargar_yaml
 from reposicion.fuentes import ConfigFuentes, cargar_fuentes
+from reposicion.validacion import ConfigValidacion, cargar_validacion
 
 
 class ConfigBacktest(BaseModel):
@@ -21,6 +22,30 @@ class ReglaCeros(BaseModel):
     dias_sin_ventas: int = Field(56, ge=1)
 
 
+class ConfigLightGBM(BaseModel):
+    """Parámetros de LightGBM (sin bagging ni early stopping: reentrenar es determinista)."""
+
+    learning_rate: float = Field(0.05, gt=0)
+    num_leaves: int = Field(63, ge=2)
+    min_data_in_leaf: int = Field(100, ge=1)
+    feature_fraction: float = Field(0.8, gt=0, le=1)
+    lambda_l2: float = Field(1.0, ge=0)
+    num_boost_round: int = Field(400, ge=1)
+    num_threads: int = Field(4, ge=1)
+    deterministic: bool = True
+    force_row_wise: bool = True
+    seed: int = 2017
+    verbose: int = -1
+
+
+class ConfigLightGBMSemanal(BaseModel):
+    """Sobrescrituras de `lightgbm` para la variante de demanda semanal (muchas menos filas)."""
+
+    num_leaves: int = Field(31, ge=2)
+    min_data_in_leaf: int = Field(50, ge=1)
+    num_boost_round: int = Field(300, ge=1)
+
+
 class ConfigModelo(BaseModel):
     horizonte_dias: int = Field(14, ge=1)
     dia_corte: int = Field(0, ge=0, le=6)
@@ -30,6 +55,9 @@ class ConfigModelo(BaseModel):
     backtest: ConfigBacktest = ConfigBacktest()
     ventana_features_dias: int = Field(364, ge=1)
     regla_ceros: ReglaCeros = ReglaCeros()
+    objetivo_transformado: Literal["log1p"] = "log1p"
+    lightgbm: ConfigLightGBM = ConfigLightGBM()
+    lightgbm_semanal: ConfigLightGBMSemanal = ConfigLightGBMSemanal()
 
     @model_validator(mode="after")
     def _cuantiles_validos(self) -> ConfigModelo:
@@ -66,13 +94,27 @@ class ConfigNegocio(BaseModel):
         return self
 
 
+class ConfigPromocion(BaseModel):
+    """Criterio de reemplazo champion/challenger (`config/promotion.yaml`)."""
+
+    costo_total_baja_min: float = Field(0.03, ge=0)
+    wape_empeora_max: float = Field(0.01, ge=0)
+    cobertura_p10_p90: tuple[float, float] = (0.70, 0.90)
+    familia_volumen_min: float = Field(0.05, ge=0, le=1)
+    familia_costo_empeora_max: float = Field(0.10, ge=0)
+    checks_tecnicos: bool = True
+    reentrenamiento: Literal["mensual_primer_lunes", "semanal", "manual"] = "mensual_primer_lunes"
+
+
 @dataclass(frozen=True)
 class Configs:
-    """Todas las configuraciones que necesitan features, modelos, backtest y pedido."""
+    """Todas las configuraciones que necesitan features, modelos, backtest, pedido y publicación."""
 
     modelo: ConfigModelo
     negocio: ConfigNegocio
     fuentes: ConfigFuentes
+    validacion: ConfigValidacion = field(default_factory=ConfigValidacion)
+    promocion: ConfigPromocion = field(default_factory=ConfigPromocion)
 
 
 def cargar_modelo(ruta: str | Path) -> ConfigModelo:
@@ -83,10 +125,16 @@ def cargar_negocio(ruta: str | Path) -> ConfigNegocio:
     return ConfigNegocio.model_validate(cargar_yaml(ruta))
 
 
+def cargar_promocion(ruta: str | Path) -> ConfigPromocion:
+    return ConfigPromocion.model_validate(cargar_yaml(ruta))
+
+
 def cargar_configs(dir_config: str | Path) -> Configs:
     d = Path(dir_config)
     return Configs(
         cargar_modelo(d / "model.yaml"),
         cargar_negocio(d / "business.yaml"),
         cargar_fuentes(d / "sources.yaml"),
+        cargar_validacion(d / "validation.yaml"),
+        cargar_promocion(d / "promotion.yaml"),
     )

@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from reposicion.modelos.base import nombre_cuantil, ordenar_cuantiles
+from reposicion.modelos.base import aplicar_regla_ceros, nombre_cuantil, ordenar_cuantiles
 from reposicion.parametros import ConfigModelo
 
 # Rejilla de cuantiles de los residuos; se interpola linealmente entre puntos.
@@ -61,12 +61,11 @@ class Baseline:
         filas = np.array(
             [pos.get((f, int(h)), pos[(GLOBAL, 0)]) for f, h in zip(familias, hs, strict=True)]
         )
-        sin_ventas = X["dias_desde_venta"].to_numpy() > self.dias_sin_ventas
         salida = {}
         for q in cuantiles:
             rq = np.array([np.interp(q, REJILLA, fila) for fila in tabla])[filas]
             pred = np.expm1(punto + rq).clip(min=0.0)
-            salida[nombre_cuantil(q)] = np.where(sin_ventas, 0.0, pred)
+            salida[nombre_cuantil(q)] = aplicar_regla_ceros(pred, X, self.dias_sin_ventas)
         return ordenar_cuantiles(pd.DataFrame(salida, index=X.index))
 
     def guardar(self, ruta: Path) -> None:

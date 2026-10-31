@@ -40,10 +40,10 @@ orientativas para una sola persona.
 - [x] `order.py` + `business.yaml`, con una prueba de que al cambiar los costos cambia el pedido.
 
 ## Fase 5 — LightGBM + champion/challenger (1.5 días) · `feat/lgbm`
-- [ ] `models/lgbm.py` con un modelo por cuantil y orden monotónico.
-- [ ] Backtest comparativo → `reports/model_comparison.md`.
-- [ ] `registry.py` + `promotion.yaml` + pruebas del criterio de reemplazo.
-- [ ] Evaluar la variante "cuantil de demanda semanal" para el pedido y decidir.
+- [x] `models/lgbm.py` con un modelo por cuantil y orden monotónico.
+- [x] Backtest comparativo → `reports/comparacion_modelos.md`.
+- [x] `registry.py` + `promotion.yaml` + pruebas del criterio de reemplazo.
+- [x] Evaluar la variante "cuantil de demanda semanal" para el pedido y decidir.
 
 ## Fase 6 — Airflow 3 en Docker (2 días) · `feat/airflow`
 - [ ] Dockerfile + `docker-compose.yaml` (LocalExecutor) + `.env.example`.

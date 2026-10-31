@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 4)
+# Contexto del proyecto (estado al cerrar la fase 5)
 
 ## Contenido
 
@@ -10,6 +10,8 @@
 6. Contratos compartidos entre fases (rutas, nombres, configs)
 7. Decisiones ya tomadas (no volver a preguntar)
 8. Trampas conocidas
+9. Fase 4: lo que quedó implementado
+10. Fase 5: lo que quedó implementado
 
 ---
 
@@ -52,6 +54,8 @@ src/reposicion/simulador.py       # simulador de bandeja (fase 2)
 src/reposicion/{rutas,io,fuentes,validacion,ingesta,almacen,asof,correcciones,cli}.py   # fase 3
 config/sources.yaml  config/validation.yaml  config/model.yaml  config/business.yaml
 src/reposicion/{parametros,datos,features,metricas,pedido,backtest}.py  src/reposicion/modelos/{base,baseline}.py   # fase 4
+src/reposicion/{registro,entrenamiento,publicacion,comparacion}.py  src/reposicion/modelos/{lgbm,semanal}.py   # fase 5
+config/promotion.yaml  reports/comparacion_modelos.md   # fase 5
 tests/sinteticos.py  tests/conftest.py   # fixtures: kaggle_sintetico, config_sintetica, bandeja_sintetica, cfg_fuentes, cfg_validacion
 tools/simulate_bandeja.py         # CLI del simulador
 tools/dvc_auth.sh                 # configura el token de DagsHub
@@ -205,6 +209,10 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 - **Datos reales grandes:** las ventas del histórico tienen 2.5 millones de filas. Usa
   `float32`/`category` donde se pueda y mide memoria y tiempo.
 - **`*.csv` y `*.parquet` están en `.gitignore`:** a propósito.
+- **LightGBM en macOS:** necesita OpenMP (`brew install libomp`); sin él, `import lightgbm` falla con
+  `libomp.dylib`. En Docker, `libgomp1`. Los procesos lanzados con `nohup`/`env`/`sh` pierden
+  `DYLD_FALLBACK_LIBRARY_PATH` (SIP): si hay que usar un workaround de libomp, exporta la variable
+  dentro del mismo comando de Python, no a través de esos binarios.
 - **DVC y archivos ignorados:** `dvc add` falla si el `.dvc` resultante queda ignorado por git
   (`FileIsGitIgnored`). Agrega las rutas de salida a `data/.gitignore` (lo hace DVC) y deja los
   `.dvc` fuera de los patrones ignorados.
@@ -223,3 +231,44 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 - Piso del baseline (corte 2017-08-14): WAPE 0.1425, RMSLE 0.4516, cobertura P10–P90 0.8431,
   costo total 2,991,009, fill rate 0.9741, merma 0.1062.
 - Las distancias a feriados se acotan a 30 días (ver `DECISIONES.md` §8).
+
+## 10. Fase 5: lo que quedó implementado (para las fases 6 a 8)
+
+- **Configs:** `parametros.Configs(modelo, negocio, fuentes, validacion, promocion)`;
+  `cargar_configs(dir)` carga los cinco YAML (`validation.yaml` y `promotion.yaml` incluidos).
+  `ConfigModelo` tiene ahora `lightgbm`, `lightgbm_semanal` y `objetivo_transformado`.
+- **Modelos:** `modelos.fabrica("baseline"|"lgbm", cfgs)`; `modelos.clase_de(tipo)`.
+  `LightGBMCuantiles(cfg_modelo, cuantiles)` entrena un cuantil por cada valor de
+  `cuantiles_requeridos`. `aplicar_regla_ceros` vive en `modelos/base.py`.
+- **Registro** (`registro.py`): `registrar(modelo, tipo, corte, metricas, dir_data, *, config_hash,
+  huella) -> modelo_id`, `anotar_decision(modelo_id, Decision, fecha_promocion, dir_data)`,
+  `evaluar_promocion(m_chall, m_champ, cfg_promocion) -> Decision(promover, motivos)`,
+  `champion_vigente(corte, dir_data) -> str | None`, `cargar_modelo(modelo_id, dir_data)`,
+  `leer_registro(dir_data)`. `fecha_promocion` = corte de la evaluación (nunca el reloj).
+  `registro.parquet`: modelo_id, tipo, corte_entrenamiento, evaluado_en, promovido, fecha_promocion,
+  orden_promocion, motivos, costo_total, wape, cobertura_p10_p90, fill_rate.
+- **Entrenamiento:** `entrenamiento.entrenar_y_evaluar(corte, dir_data, cfgs) -> Decision` e
+  `entrenar_modelo(tipo, corte, dir_data, cfgs)`. Idempotente por `modelo_id` (config + huella).
+  Lee `asof(corte)`: **la ingesta debe estar hecha hasta `corte` antes de llamarla** (en Airflow,
+  `asegurar_ingesta(corte)` también en el DAG `entrenamiento`).
+- **Publicación:** `publicacion.pronosticar_corte(corte, dir_data, cfgs, revision=1) -> Path` (el
+  directorio `rev=N`). Excepciones: `DatosInsuficientes` (anómalo: que falle la tarea),
+  `PublicacionInmutable` (la revisión existe con otras entradas, config o modelo) y
+  `PublicacionInvalida` (no pasa los checks). Mismas entradas → no-op. Sin champion vigente entrena
+  el baseline en el momento y lo anota en `advertencias`. Variable `REPOSICION_GIT_COMMIT` para el
+  commit dentro de Docker.
+- **Manifiesto:** corte, revision, modelo_id, calidad (`ok`|`degradada`), advertencias, git_commit,
+  huella_entradas, sha256_business, sha256_model (sha256 de la configuración canónica, no del
+  YAML), filas_pronostico, series, sha256_archivos. Sin timestamps. `asof.huella_entradas(corte,
+  dir_data)` calcula la huella.
+- **Pronóstico:** `pronostico.parquet` = corte, store_nbr, family, fecha_objetivo, h, un `q…` por
+  cuantil requerido (q0.10, q0.40, q0.50, q0.67, q0.90, q0.91), modelo_id; `pedido.parquet` = salida
+  de `calcular_pedido` + modelo_id.
+- **CLI:** `entrenar --corte`, `comparar --corte` (escribe `reports/comparacion_modelos.md`),
+  `pronosticar --corte [--revision N]`.
+- **Reentrenamiento:** mensual (primer lunes) + manual, criterio multicriterio en
+  `config/promotion.yaml`. La variante "cuantil de demanda semanal" se evaluó y no se adoptó
+  (+9.1% de costo); no existe en la publicación.
+- **Métricas verificadas (corte 2017-08-14):** baseline WAPE 0.1425 / costo 2,991,009; LightGBM
+  WAPE 0.1207 / cobertura 0.799 / costo 2,379,594 (-20.4%) / fill rate 0.9724. Backtest completo
+  de LightGBM: ~10 min (8 orígenes × 6 cuantiles, 4 hilos); baseline 5 s.
