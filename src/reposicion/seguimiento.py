@@ -45,6 +45,7 @@ from reposicion.asof import asof  # noqa: E402
 from reposicion.io import escribir_parquet  # noqa: E402
 from reposicion.metricas import metricas_pedido, metricas_tecnicas  # noqa: E402
 from reposicion.parametros import Configs  # noqa: E402
+from reposicion.publicacion import cortes_con_publicacion, revisiones_publicadas  # noqa: E402
 from reposicion.registro import champion_vigente, leer_registro  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -75,7 +76,12 @@ def listar_publicaciones(dir_data: Path, corte_eval: date) -> list[dict]:
     después se emitieron revisiones.
     """
     filas = []
-    for m in sorted((Path(dir_data) / "published").glob("corte=*/rev=*/manifest.json")):
+    manifiestos = [
+        ruta / "manifest.json"
+        for corte in cortes_con_publicacion(dir_data)
+        for ruta in revisiones_publicadas(dir_data, corte).values()
+    ]
+    for m in manifiestos:
         manifiesto = json.loads(m.read_text(encoding="utf-8"))
         corte = date.fromisoformat(manifiesto["corte"])
         emitido = date.fromisoformat(manifiesto.get("emitido_en", manifiesto["corte"]))

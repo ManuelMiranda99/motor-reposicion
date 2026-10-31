@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -20,8 +20,13 @@ from reposicion.fuentes import cargar_fuentes
 from reposicion.ingesta import ResumenIngesta, ingestar
 from reposicion.operacion import ConfigOperacion, cargar_operacion, ultimo_primer_lunes
 from reposicion.parametros import Configs, cargar_configs
-from reposicion.publicacion import calidad_datos, directorio_publicacion, pronosticar_corte
+from reposicion.publicacion import (
+    calidad_datos,
+    pronosticar_corte,
+    revisiones_publicadas,
+)
 from reposicion.registro import Decision, leer_registro
+from reposicion.revisiones import asegurar_publicaciones as _asegurar_publicaciones
 from reposicion.revisiones import emitir_revisiones as _emitir_revisiones
 from reposicion.seguimiento import evaluar_publicados as _evaluar_publicados
 from reposicion.seguimiento import leer_resumen
@@ -106,6 +111,28 @@ def publicar_pronostico(corte: date, dir_data: Path, config: Path) -> str:
     return str(pronosticar_corte(corte, dir_data, cargar_configs(config), revision=1))
 
 
+def asegurar_publicaciones(
+    corte: date, dir_data: Path, bandeja: Path, config: Path, inicio: date
+) -> dict:
+    """Garantiza que existan los `rev=1` que el seguimiento de `corte` necesita (idempotente).
+
+    En un backfill los DAGs corren sin orden entre sí: el seguimiento del lunes W puede llegar antes
+    que el pronóstico de W-7. Se aseguran los cortes semanales de las últimas
+    `alerta.ventana_cortes` semanas (los vigentes para revisar y los de la alerta), desde `inicio`.
+    Cada uno se publica as-of su propio corte con su champion, igual que el DAG de pronóstico.
+    """
+    cfgs = cargar_configs(config)
+    paso = timedelta(days=cfgs.modelo.backtest.paso_dias)
+    cortes = [corte - k * paso for k in range(cfgs.monitoreo.alerta.ventana_cortes + 1)]
+    cortes = [c for c in cortes if c >= inicio]
+
+    def preparar(p: date) -> None:
+        asegurar_champion(p, dir_data, bandeja, config)
+
+    publicados = _asegurar_publicaciones(cortes, dir_data, cfgs, preparar)
+    return {"publicados": [c.isoformat() for c in publicados]}
+
+
 def emitir_revisiones(corte: date, dir_data: Path, config: Path) -> dict:
     """Emite `rev=N+1` de los cortes vigentes afectados por correcciones recientes (idempotente)."""
     nuevas = _emitir_revisiones(corte, dir_data, cargar_configs(config))
@@ -131,10 +158,10 @@ def evaluar_publicados(corte: date, dir_data: Path, config: Path) -> dict:
 def registro_evento(evento: str, corte: date, dir_data: Path) -> dict:
     """Contenido determinista de `registro/<corte>/<evento>.json` en la rama de publicaciones."""
     if evento == "pronostico":
-        manifiestos = {}
-        base = directorio_publicacion(dir_data, corte, 1).parent
-        for m in sorted(base.glob("rev=*/manifest.json")):
-            manifiestos[m.parent.name] = json.loads(m.read_text(encoding="utf-8"))
+        manifiestos = {
+            d.name: json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+            for d in revisiones_publicadas(dir_data, corte).values()
+        }
         return {"manifiestos": manifiestos}
     if evento == "modelo":
         reg = leer_registro(dir_data)

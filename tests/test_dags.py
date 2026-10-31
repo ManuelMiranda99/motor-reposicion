@@ -89,6 +89,7 @@ def test_orden_de_las_tareas(dagbag):
     # La ingesta va antes de todo lo que lee `asof(corte)`.
     assert orden("seguimiento_desempeno") == [
         "asegurar_ingesta",
+        "asegurar_publicaciones",
         "emitir_revisiones",
         "evaluar_publicados",
         "versionar_seguimiento",

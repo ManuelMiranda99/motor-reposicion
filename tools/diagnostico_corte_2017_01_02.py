@@ -1,8 +1,9 @@
 """Diagnóstico (revisión independiente) del WAPE 0.563 del corte 2017-01-02 con los datos REALES.
 
-No es una prueba de pytest (no empieza con `test_`): necesita el `data/` real (solo lo LEE).
+No es una prueba de pytest (vive en `tools/`: el CI no tiene `data/`). Necesita el `data/` real
+(solo lo LEE).
 
-    python tests/revision/diagnostico_corte_2017_01_02.py <ruta a data/>
+    python tools/diagnostico_corte_2017_01_02.py <ruta a data/>
 
 Carga el modelo publicado en ese corte (`lgbm-2017-01-02-496d76f4`), arma las features del corte
 y compara el WAPE/sesgo contra las ventas reales en varios contrafactuales:
@@ -20,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
+RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
 from reposicion.asof import asof  # noqa: E402

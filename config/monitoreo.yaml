@@ -2,9 +2,8 @@
 # Corrección que afecta un pronóstico publicado: nunca se reescribe. Si su horizonte sigue vigente,
 # se emite una revisión rev=N+1 (emitido_en = corte en que se detectó).
 reemitir_si_corrige: true
-# Ventana, en días, hacia atrás desde el corte de evaluación en que se buscan correcciones nuevas
-# (el seguimiento corre semanalmente, así que son los 7 días desde la evaluación anterior).
-ventana_correcciones_dias: 7
+# Qué falta revisar se deriva del ledger contra cada publicación (entregas posteriores a los
+# datos de su última revisión), no de una ventana fija: ver src/reposicion/revisiones.py.
 # Alerta de degradación: solo advertencia (reporte y log); no reentrena automáticamente.
 alerta:
   ventana_cortes: 4          # WAPE móvil (agrupado) de los últimos 4 cortes publicados

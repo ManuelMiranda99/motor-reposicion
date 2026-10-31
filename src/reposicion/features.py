@@ -6,7 +6,7 @@ se calculan solo con la información que existía en O según el rezago de cada 
 
 | Fuente | Se usa en el origen O |
 |---|---|
-| ventas | `date <= O - 1` |
+| ventas | `date <= O - 1`; días sin operación = faltantes; `lag_1` = último día con operación |
 | transacciones | `date <= O - lag_esperado` |
 | petróleo | `date <= O - 1`, con forward-fill (solo hacia adelante) |
 | promociones | del día objetivo solo si `fecha_objetivo <= O + anticipación`; si no, NaN |
@@ -175,6 +175,16 @@ def construir_features(
     hay = ~np.isnan(ventas_m.v)
     primera_venta = np.where(hay.any(axis=1), np.argmax(hay, axis=1), np.iinfo(np.int32).max)
 
+    # Días sin operación (Año Nuevo, Navidad): sus ventas no son demanda. Las features los ven como
+    # faltantes (el objetivo `y` sigue leyendo las ventas reales); la misma regla en entrenamiento
+    # e inferencia. `sin_operacion[c]` marca las columnas (con relleno) de esos días.
+    sin_operacion = np.zeros(ventas_m.v.shape[1], bool)
+    if cfg_modelo.dias_sin_operacion:
+        marcados = np.isin(ejes.strftime("%m-%d"), cfg_modelo.dias_sin_operacion)
+        sin_operacion[_MARGEN_IZQ : _MARGEN_IZQ + n_fechas] = marcados
+    ventas_f = ventas_m.v.copy()
+    ventas_f[:, sin_operacion] = np.nan
+
     # --- atributos estáticos y feriados
     tiendas_u = tiendas.drop_duplicates("store_nbr").reset_index(drop=True)
     est = series.merge(tiendas_u[["store_nbr", "city", "state", "type", "cluster"]], on="store_nbr")
@@ -199,11 +209,16 @@ def construir_features(
         activas = np.flatnonzero(primera_venta < i)
         if activas.size == 0:
             continue
-        v = ventas_m.v[activas]
+        v = ventas_f[activas]
         w = {k: v[:, i - k : i] for k in (28, 56, 364)}  # ventana que termina en O - 1
         cols: dict[str, np.ndarray] = {}
         for k in LAGS:
             cols[f"lag_{k}"] = v[:, i - k]
+        # lag_1 = ventas del último día con operación anterior a O (no el día cerrado)
+        ult = i - 1
+        while sin_operacion[ult]:
+            ult -= 1
+        cols["lag_1"] = v[:, ult]
         for k in MEDIAS:
             cols[f"media_{k}"] = _nanstat(np.nanmean, w[56][:, -k:], 1)
         cols["mediana_28"] = _nanstat(np.nanmedian, w[28], 1)
@@ -213,7 +228,12 @@ def construir_features(
             cols["prop_ceros_28"] = np.sum(w[28] == 0, axis=1) / validos
         con_venta = np.nan_to_num(w[364], nan=0.0) > 0
         desde = np.argmax(con_venta[:, ::-1], axis=1) + 1
-        cols["dias_desde_venta"] = np.where(con_venta.any(axis=1), desde, w[364].shape[1] + 1)
+        # Sin ventas en toda la ventana: días desde que existe la serie (tope: ventana + 1). Una
+        # serie recién abierta (filas en 0 desde hace 4 días) no es una serie "muerta hace un año".
+        edad = i - primera_venta[activas]
+        cols["dias_desde_venta"] = np.where(
+            con_venta.any(axis=1), desde, np.minimum(w[364].shape[1] + 1, edad + 1)
+        )
 
         # media del mismo día de semana que el día objetivo, hasta O - 1
         sem = np.ceil(hs / 7).astype(int)  # semanas hacia atrás hasta caer en ≤ O - 1

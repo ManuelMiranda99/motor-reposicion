@@ -8,7 +8,7 @@ se conviertan en NaN sin que lo decidamos nosotros.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -24,12 +24,14 @@ MAX_EJEMPLOS = 5
 class ModoDegradadoCfg(BaseModel):
     max_dias_sin_ventas: int = Field(3, ge=0)
     ventana_huecos_dias: int = Field(28, ge=1)
-    dias_sin_operacion: list[str] = []  # "MM-DD"
 
 
 class ConfigValidacion(BaseModel):
     modo_degradado: ModoDegradadoCfg = ModoDegradadoCfg()
     completitud_min_ventas: float | None = Field(None, gt=0, le=1)
+    # Un snapshot del maestro de tiendas que omite tiendas del maestro vigente se rechaza (suele
+    # ser un archivo incremental o truncado, no una baja real).
+    tiendas_permitir_bajas: bool = False
 
 
 def cargar_validacion(ruta: str | Path) -> ConfigValidacion:
@@ -111,8 +113,15 @@ def validar_archivo(
     tiendas_validas: set[int],
     familias_validas: set[str],
     completitud_min: float | None = None,
+    fecha_entrega: date | None = None,
+    permitir_bajas_tiendas: bool = False,
 ) -> ResultadoValidacion:
-    """Valida un archivo leído como texto. `datos` solo viene si no hay errores."""
+    """Valida un archivo leído como texto. `datos` solo viene si no hay errores.
+
+    Con `fecha_entrega` aplica la regla de "dato del futuro" (`lag_minimo_dias` de la fuente).
+    Para `tiendas`, `tiendas_validas` es el maestro vigente: el snapshot no puede omitir tiendas
+    salvo que `permitir_bajas_tiendas`.
+    """
     fcfg = cfg.fuentes[fuente]
     if len(texto) == 0:
         return ResultadoValidacion(False, errores=["archivo vacío (sin filas)"])
@@ -127,6 +136,16 @@ def validar_archivo(
     datos, errores = convertir_tipos(texto[list(fcfg.columnas)], fcfg)
     if errores:
         return ResultadoValidacion(False, errores, advertencias)
+
+    if (
+        fecha_entrega is not None
+        and fcfg.lag_minimo_dias is not None
+        and fecha_dato + timedelta(days=fcfg.lag_minimo_dias) > fecha_entrega
+    ):
+        errores.append(
+            f"fecha_dato {fecha_dato} posterior a lo que permite la entrega del {fecha_entrega} "
+            f"(lag mínimo {fcfg.lag_minimo_dias} día(s)): dato del futuro"
+        )
 
     if "date" in datos.columns:
         ref = pd.Timestamp(fecha_dato)
@@ -158,6 +177,14 @@ def validar_archivo(
         desconocidas = sorted(set(datos["family"]) - familias_validas)
         if desconocidas:
             errores.append(f"family desconocida(s): {desconocidas[:MAX_EJEMPLOS]}")
+
+    if fuente == "tiendas" and not permitir_bajas_tiendas:
+        omitidas = sorted(tiendas_validas - set(datos["store_nbr"]))
+        if omitidas:
+            errores.append(
+                f"el maestro omite {len(omitidas)} tienda(s) del maestro vigente "
+                f"(ej.: {omitidas[:MAX_EJEMPLOS]}): ¿archivo incremental o truncado?"
+            )
 
     # Reglas blandas.
     if fuente == "ventas":

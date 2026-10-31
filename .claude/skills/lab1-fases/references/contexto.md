@@ -173,7 +173,7 @@ La bandeja se ubica con la variable `REPOSICION_BANDEJA` (por defecto `bandeja_s
 | `model.yaml` | F4 | horizonte, cuantiles, origenes, ventanas, parámetros de modelos |
 | `business.yaml` | F4 | costos de quiebre/merma por grupo de familias, cobertura, lead time |
 | `promotion.yaml` | F5 | criterio champion/challenger |
-| `monitoreo.yaml` | F7 | `reemitir_si_corrige`, `ventana_correcciones_dias`, alerta de degradación (`ventana_cortes`, `min_dias_con_real`, `umbral_degradacion`) |
+| `monitoreo.yaml` | F7 | `reemitir_si_corrige`, alerta de degradación (`ventana_cortes`, `min_dias_con_real`, `umbral_degradacion`) |
 | `operacion.yaml` | F6 | inicio/fin del periodo (sobrescribibles con `REPOSICION_INICIO`/`REPOSICION_FIN`), `push_remoto`, rama `publicaciones`, directorios DVC, autor de los commits |
 
 Carga siempre con `reposicion.config.cargar_yaml` + un modelo pydantic, como en
@@ -339,9 +339,12 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
   manifiesto agrega `datos_hasta`, `emitido_en` (= `datos_hasta`), `revision_de` y `motivo`; los
   `rev=1` no cambian (mismos bytes que antes). `reproducir` (fase 8) debe usar `datos_hasta` del
   manifiesto al reproducir una revisión.
-- **Revisiones:** correcciones en `(corte_eval - 7, corte_eval]` (`es_correccion` o `es_tardio`),
-  `cortes_afectados`, vigencia `corte_eval <= P + horizonte - 1`, idempotente por
-  `datos_hasta == corte_eval`. Una corrección entregada el viernes se detecta el lunes siguiente.
+- **Revisiones (corregido en §14 de DECISIONES):** por cada corte publicado, correcciones y
+  llegadas fuera de plazo (`es_correccion` o `es_tardio`) entregadas en `(datos_hasta de su última
+  revisión, corte_eval]` (no hay ventana fija de 7 días; `ventana_correcciones_dias` ya no
+  existe), `cortes_afectados(..., lags_esperados)`, vigencia `corte_eval <= P + horizonte - 1`,
+  idempotente. El DAG de seguimiento tiene la tarea `asegurar_publicaciones` antes de
+  `emitir_revisiones`. Una corrección entregada el viernes se detecta el lunes siguiente.
   Una revisión puede ser numéricamente idéntica (petróleo del 2017-05-02: el modelo no lo ve).
 - **Visibilidad en el seguimiento:** una publicación es visible en `corte_eval` si `corte <=
   corte_eval` y `emitido_en <= corte_eval` (el `rev=1` no tiene `emitido_en`: cuenta como su corte).
@@ -371,3 +374,23 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
   en palabras (usa arrays).
 - Pendientes del usuario: capturas de Airflow (`reports/evidencia/README.md`), confirmar DagsHub con
   el docente, tag `entrega-lab1`.
+
+## 14. Correcciones de la revisión independiente (rama `fix/revision`)
+
+Contratos que cambiaron (detalle y alternativas en DECISIONES §14):
+
+- **Ledger:** `es_tardio` = primera versión válida entregada después de `fecha_dato + lag_esperado`
+  (sin tolerancia). `limpio/_ledger.sha256` marca con qué ledger se construyó `limpio/`
+  (`almacen.limpio_al_dia`); `ingestar` reconstruye si no coincide.
+- **Validación:** `sources.yaml` tiene `lag_minimo_dias` por fuente (dato del futuro → cuarentena);
+  `validation.yaml` tiene `tiendas_permitir_bajas: false` (snapshot de tiendas que omite tiendas
+  del vigente → cuarentena). `validar_archivo(..., fecha_entrega=, permitir_bajas_tiendas=)`.
+- **Features:** `model.yaml` → `dias_sin_operacion: ["01-01", "12-25"]` (ya no está en
+  `validation.yaml`); esos días son faltantes en las features de ventas y `lag_1` es el del último
+  día con operación. `dias_desde_venta` sin ventas en la ventana = `min(ventana + 1, edad + 1)`.
+- **Publicación:** `pronosticar_corte(..., modelo_id=None)` (`reproducir` pasa el del manifiesto);
+  `publicacion.revisiones_publicadas` / `cortes_con_publicacion` ignoran `rev=N.tmp`.
+- **Revisiones:** `revisiones.asegurar_publicaciones(cortes, dir_data, cfgs, preparar)` y
+  `orquestacion.asegurar_publicaciones(corte, dir_data, bandeja, config, inicio)`.
+- **Pruebas:** `tests/revision/` (A*/M* verdes; B1–B6 `xfail(strict=True)`); el diagnóstico con
+  datos reales está en `tools/diagnostico_corte_2017_01_02.py`.

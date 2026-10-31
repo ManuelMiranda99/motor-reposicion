@@ -14,6 +14,7 @@ fuentes:
     nulos_permitidos: []
     disponibilidad_historica: {tipo: dias, dias: 1}
     lag_esperado_dias: 1
+    lag_minimo_dias: 0              # ventas de un día no pueden entregarse antes de ese día
     tolerancia_retraso_dias: 2
     imprescindible: true
   promociones:
@@ -30,6 +31,7 @@ fuentes:
     no_negativas: [transactions]
     disponibilidad_historica: {tipo: dias, dias: 3}   # peor caso del lag variable (1 a 3)
     lag_esperado_dias: 3
+    lag_minimo_dias: 0
     tolerancia_retraso_dias: 0
     imprescindible: false
   petroleo:
@@ -39,6 +41,7 @@ fuentes:
     nulos_permitidos: [dcoilwtico]
     disponibilidad_historica: {tipo: dias, dias: 1}
     lag_esperado_dias: 1
+    lag_minimo_dias: 0
     tolerancia_retraso_dias: 2
     imprescindible: false
   feriados:

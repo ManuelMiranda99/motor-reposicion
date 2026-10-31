@@ -125,3 +125,36 @@ def test_tiendas_no_exige_fecha_ni_maestro(v):
         {"store_nbr": ["1"], "city": ["Q"], "state": ["P"], "type": ["A"], "cluster": ["3"]}
     )
     assert v(texto, fuente="tiendas", tiendas=set()).valido
+
+
+def test_dato_del_futuro_va_a_cuarentena(v):
+    """`lag_minimo_dias` de ventas = 0: las ventas del 01-10 no pueden entregarse el 01-09."""
+    r = v(_ventas(), fecha_entrega=date(2017, 1, 9))
+    assert not r.valido and "dato del futuro" in r.errores[0]
+    assert v(_ventas(), fecha_entrega=D).valido
+    assert v(_ventas(), fecha_entrega=date(2017, 1, 11)).valido
+    assert v(_ventas()).valido  # sin fecha de entrega no se aplica la regla
+
+
+def test_fuente_sin_lag_minimo_acepta_datos_por_adelantado(v):
+    """Las promociones se publican por adelantado: no tienen `lag_minimo_dias`."""
+    texto = pd.DataFrame(
+        {
+            "date": [D.isoformat()] * 2,
+            "store_nbr": ["1", "2"],
+            "family": ["A", "A"],
+            "onpromotion": ["1", "0"],
+        }
+    )
+    assert v(texto, fuente="promociones", fecha_entrega=date(2016, 12, 1)).valido
+
+
+def test_maestro_de_tiendas_que_omite_tiendas_vigentes_es_error(v):
+    texto = pd.DataFrame(
+        {"store_nbr": ["1"], "city": ["Q"], "state": ["P"], "type": ["A"], "cluster": ["3"]}
+    )
+    r = v(texto, fuente="tiendas", tiendas={1, 2})
+    assert not r.valido and "omite 1 tienda" in r.errores[0]
+    assert v(texto, fuente="tiendas", tiendas={1, 2}, permitir_bajas_tiendas=True).valido
+    completo = pd.concat([texto, texto.assign(store_nbr=["2"]), texto.assign(store_nbr=["9"])])
+    assert v(completo, fuente="tiendas", tiendas={1, 2}).valido  # altas sí se permiten

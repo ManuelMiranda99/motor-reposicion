@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -54,6 +55,9 @@ class ConfigModelo(BaseModel):
     semilla: int = 2017
     backtest: ConfigBacktest = ConfigBacktest()
     ventana_features_dias: int = Field(364, ge=1)
+    # Días del año ("MM-DD") sin operación normal (Navidad, Año Nuevo): sus ventas no son demanda.
+    # Las features los tratan como faltantes y los rezagos usan el último día con operación.
+    dias_sin_operacion: list[str] = []
     regla_ceros: ReglaCeros = ReglaCeros()
     objetivo_transformado: Literal["log1p"] = "log1p"
     lightgbm: ConfigLightGBM = ConfigLightGBM()
@@ -63,6 +67,11 @@ class ConfigModelo(BaseModel):
     def _cuantiles_validos(self) -> ConfigModelo:
         if not self.cuantiles_reporte or any(not 0 < q < 1 for q in self.cuantiles_reporte):
             raise ValueError("cuantiles_reporte debe tener valores en (0, 1)")
+        for d in self.dias_sin_operacion:
+            try:
+                datetime.strptime(f"2000-{d}", "%Y-%m-%d")
+            except ValueError as e:
+                raise ValueError(f"dias_sin_operacion: {d!r} no es un 'MM-DD' válido") from e
         return self
 
 
@@ -118,7 +127,6 @@ class ConfigMonitoreo(BaseModel):
     """Seguimiento y revisiones (`config/monitoreo.yaml`)."""
 
     reemitir_si_corrige: bool = True
-    ventana_correcciones_dias: int = Field(7, ge=1)
     alerta: ConfigAlerta = ConfigAlerta()
 
 

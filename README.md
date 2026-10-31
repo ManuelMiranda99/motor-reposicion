@@ -155,8 +155,11 @@ python -m reposicion.cli seguimiento --corte 2017-08-14 --copiar-reporte  # adem
   evaluación y escribe, en `data/monitoring/corte=<corte>/`, las métricas por corte, familia y
   horizonte, y en `data/monitoring/reportes/<corte>.md` el reporte (con PNG): **ahí se ve el
   desempeño**. Los días sin real figuran como *real pendiente*.
-- `--revisiones` (en Airflow, la tarea `emitir_revisiones`) emite `rev=N+1` de los cortes todavía
-  vigentes que afecta una corrección entregada en la última semana. Nunca se reescribe un publicado.
+- `--revisiones` (en Airflow, las tareas `asegurar_publicaciones` y `emitir_revisiones`) emite
+  `rev=N+1` de los cortes todavía vigentes que afecta una corrección o un dato fuera de plazo
+  entregado después de los datos de su última revisión (se deriva del ledger, no de una ventana
+  fija). Nunca se reescribe un publicado; `asegurar_publicaciones` publica antes los `rev=1` que
+  falten para que el resultado no dependa del orden de los DAGs.
 - Si el WAPE móvil de 4 cortes supera en más de 20% al del backtest del champion, el reporte y el
   log traen una advertencia (no reentrena). Los umbrales están en `config/monitoreo.yaml`.
 
@@ -198,7 +201,7 @@ cron, `logical_date` es el instante del disparo: la **fecha de corte** es `logic
 | `ingesta_validacion` | `0 5 * * *` | `ingestar` → `reportar_calidad` |
 | `entrenamiento` | `0 4 * * 1` | `es_momento` (primer lunes del mes, o `forzar`) → `asegurar_ingesta` → `entrenar_y_evaluar` → `versionar_modelo` → `publicar_remoto_modelo` |
 | `pronostico_semanal` | `0 6 * * 1` | `asegurar_ingesta` → `asegurar_champion` → `verificar_datos` → `pronosticar` → `versionar_pronostico` → `publicar_remoto_pronostico` |
-| `seguimiento_desempeno` | `0 7 * * 1` | `asegurar_ingesta` → `emitir_revisiones` → `evaluar_publicados` → `versionar_seguimiento` → `publicar_remoto_seguimiento` |
+| `seguimiento_desempeno` | `0 7 * * 1` | `asegurar_ingesta` → `asegurar_publicaciones` → `emitir_revisiones` → `evaluar_publicados` → `versionar_seguimiento` → `publicar_remoto_seguimiento` |
 
 - Las tareas que escriben en `data/`, DVC o git usan el pool `escritura_datos` (1 slot): una sola
   escritura a la vez. Solo `publicar_remoto_*` se reintenta (2 veces, 1 minuto).
@@ -282,8 +285,8 @@ warning (no falla). Opciones: `siempre` (falla sin credenciales) y `nunca`.
 | `dags/` | DAGs de Airflow (solo orquestación) |
 | `docker/`, `docker-compose.yaml` | Imagen y servicios de Airflow (LocalExecutor) |
 | `config/` | Configuración versionada (costos de negocio, modelo, validación) |
-| `tests/` | Pruebas (pytest) |
-| `tools/` | Utilidades: `simulate_bandeja.py`, `dvc_auth.sh`, `limpiar_salidas.sh` |
+| `tests/` | Pruebas (pytest); `tests/revision/` son las pruebas de la revisión independiente (ver `INFORME.md` y DECISIONES §14) |
+| `tools/` | Utilidades: `simulate_bandeja.py`, `dvc_auth.sh`, `limpiar_salidas.sh`, `diagnostico_corte_2017_01_02.py` (lee `data/`) |
 | `reports/` | Evidencias versionadas en git (comparación de modelos, seguimiento, capturas) |
 | `plan/` | Plan de trabajo del laboratorio y `ESTADO.md` |
 | `DECISIONES.md` | Decisiones técnicas y de producto (y limitaciones conocidas) |

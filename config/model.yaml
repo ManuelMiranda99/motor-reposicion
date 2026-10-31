@@ -8,6 +8,7 @@ backtest:
   n_origenes: 8                    # últimos 8 lunes cuyos 14 días ya se conocen
   paso_dias: 7
 ventana_features_dias: 364         # cuánta historia usan las features (para cortes_afectados)
+dias_sin_operacion: ["01-01", "12-25"]  # mes-día sin demanda normal: las features los ignoran
 regla_ceros: {dias_sin_ventas: 56} # serie sin ventas en 56 días → pronóstico 0
 objetivo_transformado: log1p       # el modelo se entrena en log1p(y) y se predice con expm1
 lightgbm:                          # un Booster por cuantil (objective=quantile, alpha=q)

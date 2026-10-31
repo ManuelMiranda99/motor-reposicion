@@ -191,7 +191,10 @@ def test_tardio_marcado_y_no_visible_antes_de_su_entrega(ingerido):
     )
     assert date(2017, 1, 12) in fechas_faltantes("ventas", date(2017, 1, 17), 28, ingerido)
     assert date(2017, 1, 12) not in fechas_faltantes("ventas", date(2017, 1, 18), 28, ingerido)
-    assert leer_ledger(ingerido)["es_tardio"].sum() == 1
+    # También es "tardía" (fuera del plazo nominal, aunque dentro de la tolerancia) la primera
+    # versión válida de las ventas del 01-14: inválidas el 01-15 y reentregadas el 01-16.
+    tardios = leer_ledger(ingerido).query("es_tardio")
+    assert sorted(tardios["fecha_dato"].dt.date.astype(str)) == ["2017-01-12", "2017-01-14"]
 
 
 # ------------------------------------------------------------------------------ as-of

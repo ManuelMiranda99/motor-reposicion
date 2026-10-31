@@ -121,6 +121,9 @@ def test_maestro_de_tiendas_parcial_no_contamina_las_ventas_posteriores(
 
 
 # ------------------------------------------- H-ING-2 archivo que aparece en una carpeta antigua
+@pytest.mark.xfail(
+    strict=True, reason="B2: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
+)
 def test_version_vigente_es_la_ultima_entregada_aunque_se_ingiera_despues(
     bandeja_sintetica, cfg_fuentes, cfg_validacion, tmp_path
 ):

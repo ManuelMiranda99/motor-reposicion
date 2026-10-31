@@ -31,6 +31,10 @@ class ConfigFuente(BaseModel):
     snapshot: bool = False
     disponibilidad_historica: DisponibilidadHistorica
     lag_esperado_dias: int | None = None
+    # Anticipación máxima física: `fecha_dato + lag_minimo_dias <= fecha_entrega`. Un archivo que
+    # describe un día posterior a lo que su entrega permite ("dato del futuro") va a cuarentena.
+    # `None` = sin regla (promociones, feriados y maestro se publican por adelantado).
+    lag_minimo_dias: int | None = None
     tolerancia_retraso_dias: int = Field(0, ge=0)
     imprescindible: bool = False
 
