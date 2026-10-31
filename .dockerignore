@@ -1,0 +1,9 @@
+# El contexto de build solo necesita requirements.txt y docker/
+data/
+bandeja_sim/
+.venv/
+.git/
+logs/
+reports/
+plan/
+*.pdf

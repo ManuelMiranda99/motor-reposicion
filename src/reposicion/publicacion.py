@@ -84,7 +84,7 @@ def _git_commit() -> str:
         return "desconocido"
 
 
-def _calidad(corte: date, dir_data: Path, cfgs: Configs) -> tuple[str, list[str]]:
+def calidad_datos(corte: date, dir_data: Path, cfgs: Configs) -> tuple[str, list[str]]:
     """Chequeo de modo degradado. Lanza `DatosInsuficientes` si no hay ventas recientes."""
     cfg = cfgs.validacion.modo_degradado
     ultima = ultima_fecha_disponible("ventas", corte, dir_data)
@@ -136,7 +136,7 @@ def pronosticar_corte(corte: date, dir_data: Path, cfgs: Configs, revision: int 
     """Genera y publica el pronóstico y el pedido de `corte`. Devuelve el directorio `rev=N`."""
     dir_data = Path(dir_data)
     destino = directorio_publicacion(dir_data, corte, revision)
-    calidad, advertencias = _calidad(corte, dir_data, cfgs)
+    calidad, advertencias = calidad_datos(corte, dir_data, cfgs)
     huella = huella_entradas(corte, dir_data)
     sha_negocio, sha_modelo = hash_config(cfgs.negocio), hash_config(cfgs.modelo)
 

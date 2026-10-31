@@ -1,0 +1,16 @@
+# Operación con Airflow (fase 6) — ver src/reposicion/operacion.py y dags/.
+# Las variables de entorno REPOSICION_INICIO y REPOSICION_FIN (.env) tienen prioridad sobre estas
+# fechas: sirven para operar otro periodo (por ejemplo, el no publicado) sin tocar el código.
+inicio: 2017-01-02            # primer corte (lunes) que opera el backfill
+fin: 2017-08-14               # último corte
+# Push de la rama de publicaciones y de los datos (DVC):
+#   auto    → con GITHUB_TOKEN / DAGSHUB_TOKEN hace push; sin ellos, deja un warning y no falla
+#   siempre → falla si faltan las credenciales
+#   nunca   → solo commit local
+push_remoto: auto
+rama_publicaciones: publicaciones
+# Subdirectorios de data/ que Airflow versiona con DVC (los que no existen aún se omiten).
+directorios_dvc: [raw, ledger, limpio, backtest, models, published, monitoring]
+autor:
+  nombre: "motor-reposicion[airflow]"
+  correo: "airflow@motor-reposicion.local"

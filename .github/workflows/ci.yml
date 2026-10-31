@@ -37,3 +37,34 @@ jobs:
 
       - name: Pytest
         run: pytest
+
+  dags:
+    name: dags
+    runs-on: ubuntu-24.04
+    env:
+      AIRFLOW_VERSION: "3.3.2"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar Airflow con su constraints file
+        run: |
+          python -m pip install --upgrade pip
+          pip install "apache-airflow==${AIRFLOW_VERSION}" \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.11.txt"
+
+      - name: Instalar las dependencias del proyecto (como en la imagen de Docker)
+        run: |
+          pip install -r requirements-dev.txt -e .
+          pip check
+
+      - name: Pruebas de los DAGs
+        run: pytest tests/test_dags.py -v

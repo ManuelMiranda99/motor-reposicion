@@ -68,6 +68,13 @@ def emitir_revisiones(corte_eval: date, dir_data, cfgs) -> list[Path]
 
 ### DAGs
 
+**Estado tras la fase 6:** `dags/seguimiento_desempeno.py` ya tiene `asegurar_ingesta` →
+`evaluar_publicados` (stub en `orquestacion.py`) → `versionar_seguimiento` → `publicar_remoto_seguimiento`;
+`orquestacion.registro_evento("seguimiento", ...)` devuelve un estado "pendiente" y debe devolver un
+resumen determinista del seguimiento (sin timestamps). `data/monitoring` ya está en la lista de
+directorios DVC (`config/operacion.yaml`). Una `PublicacionInmutable` en `pronostico_semanal` falla
+sin reintento (`AirflowFailException`): las revisiones nuevas las emite `emitir_revisiones`.
+
 Conecta `seguimiento_desempeno`: `asegurar_ingesta` → `emitir_revisiones` →
 `evaluar_publicados` → `versionar("seguimiento", corte)`. Quita el stub de la fase 6.
 

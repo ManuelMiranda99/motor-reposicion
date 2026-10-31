@@ -46,11 +46,11 @@ orientativas para una sola persona.
 - [x] Evaluar la variante "cuantil de demanda semanal" para el pedido y decidir.
 
 ## Fase 6 — Airflow 3 en Docker (2 días) · `feat/airflow`
-- [ ] Dockerfile + `docker-compose.yaml` (LocalExecutor) + `.env.example`.
-- [ ] Los 5–6 DAGs de 05, delgados.
-- [ ] `versioning.py`: dvc add/push + commit/push a `publicaciones`, con pool `dvc_git`.
-- [ ] `tests/test_dags.py` (DagBag sin errores de import) en CI.
-- [ ] Backfill completo 2017-01 → 2017-08 en verde.
+- [x] Dockerfile + `docker-compose.yaml` (LocalExecutor) + `.env.example`.
+- [x] Los 4 DAGs (`ingesta_validacion`, `entrenamiento`, `pronostico_semanal`, `seguimiento_desempeno`), delgados.
+- [x] `versionado.py`: dvc add/push + commit/push a `publicaciones`, con pool `escritura_datos`.
+- [x] `tests/test_dags.py` (DagBag sin errores de import) en CI (job `dags`).
+- [x] Corridas reales en Docker verificadas (ver `plan/ESTADO.md`); el backfill completo hasta 2017-08-14 queda para la fase 8.
 
 ## Fase 7 — Monitoreo y reprocesamiento (1 día) · `feat/monitoreo`
 - [ ] `monitor.py` + reporte HTML/MD por corte y acumulado (métricas por semana, por familia y
