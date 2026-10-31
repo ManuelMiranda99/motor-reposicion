@@ -60,14 +60,17 @@ orientativas para una sola persona.
 - [x] Prueba de idempotencia (dos corridas → mismos hashes), backfill = operación y sin leakage.
 
 ## Fase 8 — Reproducibilidad, documentación y entrega (1 día) · `feat/docs`
-- [ ] `reposicion.cli reproduce --cutoff` + sección del README "Reproducir un pronóstico pasado".
-- [ ] **Ensayo de la evaluación docente:** en otra carpeta, `git clone` → `dvc pull` →
-      `docker compose up` siguiendo **solo** el README → agregar a la bandeja archivos de un periodo
-      nuevo (incluidos inválidos y correcciones) → verificar que todo corre sin intervención.
-- [ ] `DECISIONES.md` completo (ver lista abajo).
-- [ ] Evidencias: capturas de Airflow, `model_comparison.md` y reporte de monitoreo.
-- [ ] Dar acceso a los docentes en GitHub y DagsHub (o dejar ambos públicos).
-- [ ] `git tag entrega-lab1 && git push origin entrega-lab1`.
+- [x] `reposicion.cli reproducir --corte [--rev]` + sección del README "Reproducir un pronóstico
+      publicado" (`REPRODUCIDO ✓` en 5 publicaciones, 3 de ellas revisiones; en Docker).
+- [x] **Ensayo de la evaluación docente:** clon limpio → `dvc pull` → `docker compose up` siguiendo
+      el README, con otra bandeja (semilla 777, escenarios nuevos) y una ventana de 4 semanas; todo
+      corrió sin intervención. (Credenciales de DVC copiadas; sin segunda cuenta de DagsHub.)
+- [x] `DECISIONES.md` completo (decisiones 1–13 "Aceptadas" y limitaciones conocidas).
+- [~] Evidencias: `reports/comparacion_modelos.md` y `reports/seguimiento.md` (+ PNG) listos;
+      **capturas de Airflow pendientes** (lista exacta en `reports/evidencia/README.md`).
+- [~] Acceso de los docentes: GitHub es público; DagsHub exige cuenta propia del docente +
+      `tools/dvc_auth.sh` (**pendiente confirmarlo con el docente**).
+- [ ] `git tag entrega-lab1 && git push origin entrega-lab1` (lo hace el usuario tras revisar).
 
 **Total estimado: ~10 días de trabajo.**
 

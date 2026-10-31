@@ -28,7 +28,7 @@ git clone https://github.com/ManuelMiranda99/motor-reposicion.git && cd motor-re
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -e .
 ./tools/dvc_auth.sh                  # pide el token de DagsHub (sin mostrarlo)
-dvc pull                             # entradas + estado entregado (~1 GB, unos minutos)
+dvc pull                             # entradas + estado entregado (~600 MB, ~1 min)
 cp .env.example .env                 # edita AIRFLOW_UID (el resultado de `id -u`) y, si quieres, los tokens
 docker compose up -d --build         # primera vez: construye la imagen (~3 min)
 ```
@@ -185,7 +185,7 @@ Airflow 3.3.2 (imagen `apache/airflow:3.3.2-python3.11` + las dependencias del p
 
 **Tiempos:** un reentrenamiento (primer lunes de cada mes) tarda ~15–28 min en Docker y todo lo que
 escribe en `data/` está serializado (pool de 1 slot): un backfill de 8 meses toma varias horas
-(2017-01-02 → 2017-08-14: ver [Evidencias](#evidencias)); una ventana de 4 semanas, ~30 min. Los
+(2017-01-02 → 2017-08-14: ~4 h, ver [Evidencias](#evidencias)); una ventana de 4 semanas, ~25 min. **No dejes que el equipo hiberne durante un backfill** (conéctalo a la corriente): la VM de Docker se congela y Airflow marca la tarea en curso como fallida. Los
 DAGs semanales se atrasan mientras entrena el primero; es normal (ver la columna *Duration* del Grid).
 
 ### Los DAGs
@@ -243,15 +243,20 @@ que correr los cortes anteriores: `REPOSICION_INICIO` fija el primer corte y la 
 run lee todo lo entregado hasta ese día. El primer corte entrena el primer champion (el baseline es el
 champion inicial hasta que LightGBM lo supera).
 
-Generar una bandeja distinta con el simulador (otra semilla y escenarios en otras fechas):
+Generar una bandeja distinta con el simulador (otra semilla y escenarios en otras fechas). La carga
+histórica **depende de la semilla** (el lag de las transacciones decide qué cae antes del 2017-01-01),
+así que se genera junto con la bandeja y se usa en lugar de `data/historico`:
 
 ```bash
 cp config/simulador.yaml /ruta/simulador_alt.yaml     # edita `semilla` y `escenarios`
-python tools/simulate_bandeja.py --config /ruta/simulador_alt.yaml --bandeja /ruta/bandeja_alt \
-    --historico /ruta/historico_alt
+python tools/simulate_bandeja.py --config /ruta/simulador_alt.yaml \
+    --bandeja /ruta/bandeja_alt --historico /ruta/historico_alt
+./tools/limpiar_salidas.sh && rm -rf data/historico && cp -R /ruta/historico_alt data/historico
+# .env: BANDEJA_PATH=/ruta/bandeja_alt, REPOSICION_INICIO=..., REPOSICION_FIN=...
 ```
 
-(La carga histórica no depende de la semilla; usa `--historico` para no pisar `data/historico`.)
+(Se necesita `data/kaggle`, que trae `dvc pull`. Para tener dos copias del proyecto a la vez, define
+`COMPOSE_PROJECT_NAME=otro` en el `.env` de la segunda y cambia el puerto `8080` del compose.)
 
 Los escenarios que cubre el sistema (y se pueden inyectar en el simulador): archivo faltante, tardío,
 corrección (también dos correcciones seguidas del mismo día), duplicado idéntico, inválido con o sin
@@ -360,7 +365,29 @@ completo desde cero: ver [DECISIONES §13](DECISIONES.md).
 
 ### Ensayo de la evaluación docente
 
-ENSAYO_RESUMEN
+Ensayo hecho **siguiendo este README** en un clon limpio desde GitHub (venv nuevo, `dvc pull`, Docker
+con otro nombre de proyecto), con una bandeja distinta generada con el simulador (semilla 777 y
+escenarios en otras fechas) y una ventana corta: cortes 2017-06-05 → 2017-06-26 (4 semanas, ~25 min
+con el reentrenamiento de junio). Resultado: 4 + 4 + 4 + 22 runs en verde, sin intervención.
+
+- `dvc pull` en el clon: ~1 min, 544 MB; `dvc status -c` limpio. (En el ensayo, las credenciales de DVC
+  se copiaron de `.dvc/config.local` del repo principal en lugar de pedir el token.)
+- Escenarios nuevos que el sistema absorbió: **dos correcciones seguidas del mismo dato** (ventas del
+  06-06: versión 2 el 06-12 y versión 3 el 06-14; cada una produjo su revisión y se conservaron las
+  anteriores), **fuente con 5 días de retraso** (ventas del 06-15, entregadas el 06-20: el corte 06-19
+  salió `degradada` y su `rev=2` ya incluye el dato), transacciones tardías, un duplicado idéntico,
+  3 archivos en cuarentena (ventas negativas con reentrega, transacciones sin columna, promociones con
+  tienda desconocida) y un faltante. Todos resueltos sin fallas.
+- Fricciones encontradas y corregidas en este README: (1) la carga histórica **depende de la semilla**
+  del simulador (el lag de transacciones cambia lo que cae antes del 2017-01-01), así que con otra
+  bandeja hay que reemplazar también `data/historico` (se documentó, junto con
+  `tools/limpiar_salidas.sh` para partir de un `data/` limpio); (2) un archivo con el mismo nombre
+  pero otro contenido en una bandeja distinta se leería como corrección del estado entregado: se
+  documentó cuándo limpiar las salidas; (3) cómo correr dos copias a la vez
+  (`COMPOSE_PROJECT_NAME` y puerto); (4) el tamaño real del `dvc pull` (~600 MB, ~1 min) y la
+  advertencia de no dejar que la máquina hiberne durante un backfill.
+- No se probó: `dvc pull` con una cuenta de DagsHub distinta de la del dueño (no había otra) ni la
+  construcción de la imagen sin caché (~3 min la primera vez).
 
 ### Pruebas
 
