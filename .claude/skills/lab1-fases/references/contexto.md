@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 7)
+# Contexto del proyecto (estado al cerrar la fase 8)
 
 ## Contenido
 
@@ -14,6 +14,7 @@
 10. Fase 5: lo que quedó implementado
 11. Fase 6: lo que quedó implementado
 12. Fase 7: lo que quedó implementado
+13. Fase 8: lo que quedó implementado
 
 ---
 
@@ -356,3 +357,17 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
   petróleo del 05-02, esta última numéricamente idéntica); el 07-04 sale como real pendiente en los
   cortes 06-26 y 07-03; el corte 2017-01-02 tiene WAPE 0.563 (las ventas del 01-01 son casi cero).
   Verificado en Docker (`airflow dags test seguimiento_desempeno` 2017-02-06 y 2017-02-13).
+
+## 13. Fase 8: lo que quedó implementado (proyecto completo)
+
+- `reproduccion.reproducir(corte, revision, dir_data, cfgs)` + CLI `reproducir --corte [--rev]`
+  (código de salida 1 si no reproduce). Directorio temporal con enlaces a `data/` salvo `published/`.
+  Válido solo en el mismo entorno (Docker/Linux); en macOS los parquet de LightGBM difieren.
+- Estado entregado en `main`: `.dvc` de `data/` (incl. `monitoring.dvc`) del backfill 2017-01-02 →
+  08-14 en Docker (324 runs; manifiestos con `git_commit` = `e2ed976`). `tools/limpiar_salidas.sh`
+  borra las salidas regenerables. Rama `publicaciones` empujada a origin (74 commits).
+- Trampas nuevas: hibernación del Mac durante un backfill deja la tarea `failed` (usar corriente +
+  `caffeinate`); la carga histórica depende de la semilla del simulador; en zsh, `$var` no se divide
+  en palabras (usa arrays).
+- Pendientes del usuario: capturas de Airflow (`reports/evidencia/README.md`), confirmar DagsHub con
+  el docente, tag `entrega-lab1`.

@@ -11,9 +11,9 @@ cada fase, en el mismo PR.
 | 3 — Ingesta, ledger, validación, as-of | `feat/ingesta` | ✅ Hecha | #6 | 853 archivos: 847 válidos, 5 cuarentena, 1 duplicado; simulador corregido (promos tienda 52) |
 | 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ✅ Hecha | #7 | Baseline en el corte 2017-08-14: WAPE 0.143, cobertura P10–P90 84.3%, fill rate 97.4% |
 | 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ✅ Hecha | #8 | LightGBM vs baseline (corte 2017-08-14): WAPE 0.121 vs 0.143, costo -20.4%; champion inicial promovido el 2017-01-02; variante semanal descartada (+9.1% costo) |
-| 6 — Airflow 3 en Docker | `feat/airflow` | ✅ Hecha | PR_F6 | Docker verificado (ventana 2017-01-02→03-20): 114 runs en verde, 27 commits en `publicaciones`, re-ejecución sin cambios (mismo hash). Falta backfill completo y capturas de la UI (fase 8) |
+| 6 — Airflow 3 en Docker | `feat/airflow` | ✅ Hecha | #9 | Docker verificado (ventana 2017-01-02→03-20): 114 runs en verde, 27 commits en `publicaciones`, re-ejecución sin cambios (mismo hash). Falta backfill completo y capturas de la UI (fase 8) |
 | 7 — Monitoreo, correcciones, e2e | `feat/monitoreo` | ✅ Hecha | #10 | Seguimiento por corte (as-of), revisiones por corrección (`datos_hasta`), alerta de degradación (solo advertencia), reporte MD+PNG, 11 pruebas e2e. Real (2017-01-02→08-14): WAPE por corte 0.107–0.196 (salvo 01-02: 0.563), 3 revisiones emitidas, DAG verificado en Docker |
-| 8 — Reproducibilidad, docs, entrega | `feat/docs` | ⏳ Pendiente | | |
+| 8 — Reproducibilidad, docs, entrega | `feat/docs` | ✅ Hecha | #11 | `reproducir` (REPRODUCIDO ✓ en 5 publicaciones, 3 con revisión), backfill completo en Docker (324 runs en verde, ~3 h 53 min), `.dvc` de `data/` en main, ensayo docente con bandeja distinta, README/DECISIONES/CLAUDE.md completos. Pendientes del usuario: capturas de Airflow (`reports/evidencia/README.md`), confirmar DagsHub con el docente, tag `entrega-lab1` |
 
 ## Decisiones tomadas durante la ejecución
 
@@ -37,3 +37,7 @@ documentarlo en `DECISIONES.md`.
 - F7: corrección que afecta un publicado: nunca se reescribe; el seguimiento se recalcula con el dato corregido y, si el corte sigue vigente, se emite `rev=N+1` con `emitido_en` = corte de detección (`reemitir_si_corrige: true` en `config/monitoreo.yaml`); `emitir_revisiones` va en el DAG de seguimiento.
 - F7: reporte de seguimiento en Markdown + PNG (matplotlib, backend Agg) por corte de evaluación en `data/monitoring/reportes/`; la copia a `reports/seguimiento.md` se hace en la fase 8 (`seguimiento.publicar_reporte_reciente`).
 - F7: alerta de degradación solo como advertencia (reporte y log): WAPE móvil de 4 cortes > 1.2 × WAPE del backtest del champion; no reentrena automáticamente.
+- F8 (decisión del usuario): el docente usa su propia cuenta de DagsHub + `tools/dvc_auth.sh` (no se migra el remoto); **pendiente: confirmarlo con el docente**.
+- F8 (decisión del usuario): se commitean a `main` los `.dvc` de `data/` del backfill completo (histórico, modelos, publicados, seguimiento) y se hace `dvc push`; verificado en clon limpio (`dvc status -c` limpio).
+- F8 (decisión del usuario): el tag `entrega-lab1` NO se crea desde la automatización; comando: `git switch main && git pull && git tag -a entrega-lab1 -m "Entrega Laboratorio 1" && git push origin entrega-lab1`.
+- F8: el primer backfill falló por hibernación del equipo (no por el código) y se repitió completo desde cero; ver `DECISIONES.md` §13.
