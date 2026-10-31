@@ -12,7 +12,7 @@ cada fase, en el mismo PR.
 | 4 — Features, baseline, backtest, pedido | `feat/features-baseline` | ✅ Hecha | #7 | Baseline en el corte 2017-08-14: WAPE 0.143, cobertura P10–P90 84.3%, fill rate 97.4% |
 | 5 — LightGBM, registro, publicación offline | `feat/lgbm` | ✅ Hecha | #8 | LightGBM vs baseline (corte 2017-08-14): WAPE 0.121 vs 0.143, costo -20.4%; champion inicial promovido el 2017-01-02; variante semanal descartada (+9.1% costo) |
 | 6 — Airflow 3 en Docker | `feat/airflow` | ✅ Hecha | PR_F6 | Docker verificado (ventana 2017-01-02→03-20): 114 runs en verde, 27 commits en `publicaciones`, re-ejecución sin cambios (mismo hash). Falta backfill completo y capturas de la UI (fase 8) |
-| 7 — Monitoreo, correcciones, e2e | `feat/monitoreo` | ✅ Hecha | PR_F7 | Seguimiento por corte (as-of), revisiones por corrección (`datos_hasta`), alerta de degradación (solo advertencia), reporte MD+PNG, 11 pruebas e2e. Real (2017-01-02→08-14): WAPE por corte 0.107–0.196 (salvo 01-02: 0.563), 3 revisiones emitidas, DAG verificado en Docker |
+| 7 — Monitoreo, correcciones, e2e | `feat/monitoreo` | ✅ Hecha | #10 | Seguimiento por corte (as-of), revisiones por corrección (`datos_hasta`), alerta de degradación (solo advertencia), reporte MD+PNG, 11 pruebas e2e. Real (2017-01-02→08-14): WAPE por corte 0.107–0.196 (salvo 01-02: 0.563), 3 revisiones emitidas, DAG verificado en Docker |
 | 8 — Reproducibilidad, docs, entrega | `feat/docs` | ⏳ Pendiente | | |
 
 ## Decisiones tomadas durante la ejecución
