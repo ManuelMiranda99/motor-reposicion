@@ -19,7 +19,7 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 8 | Modelos, validación temporal y métricas | Aceptada (baseline y LightGBM) |
 | 9 | Pedido sugerido (newsvendor) | Aceptada |
 | 10 | Criterio de reemplazo de modelo, registro y publicación offline | Aceptada |
-| 11 | Versionado de publicaciones desde Airflow | Pendiente |
+| 11 | Orquestación con Airflow y versionado de publicaciones | Aceptada |
 
 ---
 
@@ -320,3 +320,58 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   YAML, para que comentarios y espacios no cuenten como cambios), `filas_pronostico`, `series` y
   `sha256_archivos`. `git_commit` no entra en la comparación de idempotencia: repetir el corte desde
   otro commit con las mismas entradas no reescribe la publicación.
+
+## 11. Orquestación con Airflow y versionado de publicaciones
+
+- **Contexto:** hay que orquestar la ingesta, el reentrenamiento, el pronóstico y el seguimiento
+  sin poner lógica en los DAGs, de forma idempotente, con backfill y sin ensuciar el árbol de
+  trabajo del desarrollador (el repo se monta en el contenedor y `main` está protegida).
+- **Airflow 3.3.2, `LocalExecutor`** (imagen `apache/airflow:3.3.2-python3.11`, versión fijada por el
+  usuario). Compose derivado del oficial, sin Celery/Redis: un solo host y un pool de un slot
+  hacen innecesario un worker distribuido. La imagen agrega `libgomp1` (LightGBM), `git` y las
+  dependencias de `requirements.txt` (`pip check` sin conflictos con pandas 3.1.0, numpy 2.4.6 y
+  pydantic 2.14.1).
+- **Cuatro DAGs con schedule por tiempo, sin Assets.** En Airflow 3, las ejecuciones disparadas por
+  un Asset no tienen `logical_date`, y aquí todo depende de la fecha de corte. Con un cron,
+  `logical_date` es el instante del disparo (verificado en el scheduler real: `scheduled__2017-01-09T05:00:00`
+  → corte 2017-01-09), así que el corte es `logical_date.date()`. Alternativa descartada: un solo DAG
+  semanal (cubre peor "un DAG por etapa").
+- **Periodo no publicado:** `.env` con `BANDEJA_PATH`, `REPOSICION_INICIO` y `REPOSICION_FIN` (tienen
+  prioridad sobre `config/operacion.yaml`); `catchup=True`, así que basta despausar los DAGs.
+  `end_date` es las 23:59:59 del último día para que el corte de `REPOSICION_FIN` sí corra.
+  Alternativa: disparo manual con parámetros (más pasos para el docente).
+- **Reentrenamiento:** `0 4 * * 1` + `short_circuit` que deja pasar solo el primer lunes del mes
+  (`es_primer_lunes`). No se usa `0 4 1-7 * 1`: cron combina día del mes y de la semana con O.
+  También se puede disparar a mano con `forzar=true`.
+- **`asegurar_champion` (decisión propia, no está en la referencia):** en un backfill los cuatro DAGs
+  corren sin orden entre sí. Si el pronóstico del lunes T corriera antes que el reentrenamiento de
+  T, usaría un champion distinto del que habría tenido en producción, y al reejecutarlo daría
+  `PublicacionInmutable`. Para que el resultado no dependa del orden, `pronostico_semanal` asegura
+  (con la misma función idempotente, `entrenar_y_evaluar`) la evaluación del último primer lunes
+  `<= T`. Si el DAG `entrenamiento` ya la hizo, es un no-op (`ya fue evaluado`). Alternativas: un
+  `ExternalTaskSensor` (se cuelga si se pausa el otro DAG) o confiar en el orden del scheduler
+  (no determinista). Un reentrenamiento manual fuera de calendario sí afecta a los cortes
+  posteriores: es lo que significa "manual".
+- **Cada DAG asegura su ingesta** (`asegurar_ingesta(corte)`): `asof(corte)` lee el almacén limpio y
+  `ingestar` es idempotente y no depende del orden; así ningún DAG depende de otro.
+- **Pool `escritura_datos` (1 slot):** todo lo que escribe o lee `data/`, DVC o git va serializado.
+  Solo las tareas `publicar_remoto_*` (red) se reintentan (2 veces, 1 minuto); la lógica no, porque
+  un error de lógica no es transitorio. `DatosInsuficientes` y `PublicacionInmutable` fallan sin
+  reintento (`AirflowFailException`); la cuarentena no falla.
+- **Versionado con *plumbing* de git** (`versionado.py`): `dvc add` de las salidas y commit en
+  `refs/heads/publicaciones` con un índice temporal (`GIT_INDEX_FILE`), sin checkout; el árbol de
+  trabajo y el índice del desarrollador no se tocan (`core.autostage = false`). Autor fijo y fecha
+  = el corte: mismo contenido → mismo commit; árbol igual al del padre → no-op. El commit lleva los
+  `.dvc` (estado acumulado de `data/`) y `registro/<corte>/<evento>.json` con contenido
+  determinista del evento (manifiestos del corte, decisiones del modelo). Alternativas: commitear
+  a `main` (protegida, ensucia el árbol) o un worktree aparte (más piezas móviles).
+- **`versionar` y `publicar_remoto` son dos tareas** (la referencia las junta): el commit local no
+  se reintenta y el push de red sí.
+- **`push_remoto: auto`:** con `GITHUB_TOKEN`, `git push` de `publicaciones` (token por entorno
+  `http.extraheader`, no por argv ni en el log); con `DAGSHUB_TOKEN`, `dvc push`. Sin credenciales,
+  warning y el commit local; nunca falla por eso. `siempre` y `nunca` existen en la configuración.
+  Un token vacío en el `.env` cuenta como ausente.
+- **Ingesta diaria sin versionar:** el commit ocurre en los eventos semanales/mensuales; como los
+  `.dvc` son acumulados, igualmente capturan lo ingerido (evita 225 commits y `dvc add` diarios).
+- **Seguimiento:** `evaluar_publicados` es un stub explícito hasta la fase 7.
+

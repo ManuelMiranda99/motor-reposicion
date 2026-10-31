@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 5)
+# Contexto del proyecto (estado al cerrar la fase 6)
 
 ## Contenido
 
@@ -12,6 +12,7 @@
 8. Trampas conocidas
 9. Fase 4: lo que quedó implementado
 10. Fase 5: lo que quedó implementado
+11. Fase 6: lo que quedó implementado
 
 ---
 
@@ -169,7 +170,7 @@ La bandeja se ubica con la variable `REPOSICION_BANDEJA` (por defecto `bandeja_s
 | `model.yaml` | F4 | horizonte, cuantiles, origenes, ventanas, parámetros de modelos |
 | `business.yaml` | F4 | costos de quiebre/merma por grupo de familias, cobertura, lead time |
 | `promotion.yaml` | F5 | criterio champion/challenger |
-| `operacion.yaml` | F6 | fechas de inicio/fin de la operación, push remoto |
+| `operacion.yaml` | F6 | inicio/fin del periodo (sobrescribibles con `REPOSICION_INICIO`/`REPOSICION_FIN`), `push_remoto`, rama `publicaciones`, directorios DVC, autor de los commits |
 
 Carga siempre con `reposicion.config.cargar_yaml` + un modelo pydantic, como en
 `simulador.cargar_config`.
@@ -272,3 +273,46 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 - **Métricas verificadas (corte 2017-08-14):** baseline WAPE 0.1425 / costo 2,991,009; LightGBM
   WAPE 0.1207 / cobertura 0.799 / costo 2,379,594 (-20.4%) / fill rate 0.9724. Backtest completo
   de LightGBM: ~10 min (8 orígenes × 6 cuantiles, 4 hilos); baseline 5 s.
+
+## 11. Fase 6: lo que quedó implementado (para las fases 7 y 8)
+
+- **Archivos:** `docker/Dockerfile` (Airflow 3.3.2 py3.11 + `git` + `libgomp1` + `requirements.txt`;
+  `pip check` limpio), `docker-compose.yaml` (LocalExecutor; postgres, init, apiserver, scheduler,
+  dag-processor, triggerer; perfil `debug` con `airflow-cli`), `.env.example`, `.dockerignore`,
+  `config/operacion.yaml`, `dags/{_comun,ingesta_validacion,entrenamiento,pronostico_semanal,seguimiento_desempeno}.py`,
+  `src/reposicion/{operacion,orquestacion,versionado}.py`, `tests/test_dags.py` (+ job `dags` en el CI).
+- **UI:** usuario `airflow`, contraseña `airflow`. `docker compose run --rm airflow-cli airflow ...`
+  para la CLI (con `-T` en scripts). El repo se monta en `/opt/airflow/repo`, la bandeja en
+  `/opt/bandeja:ro`. Airflow 3.3.2: `DagBag` no acepta `include_examples`; el timetable del SDK
+  expone `.expression`; las pruebas añaden `dags/` al `sys.path`.
+- **Fecha de corte:** verificado en el scheduler real: con un cron, `logical_date` es el disparo
+  (`scheduled__2017-03-13T06:00` → corte 2017-03-13). `end_date` = 23:59:59 de `REPOSICION_FIN`.
+- **Tareas por DAG:** ver README ("Los DAGs"). Todo lo que toca `data/`/DVC/git va en el pool
+  `escritura_datos` (1 slot); solo `publicar_remoto_*` reintenta (2). `PublicacionInmutable` →
+  `AirflowFailException`.
+- **`pronostico_semanal` incluye `asegurar_champion`** (no estaba en la referencia): asegura con
+  `entrenar_y_evaluar` la evaluación del último primer lunes `<= corte` (`operacion.ultimo_primer_lunes`),
+  para que el backfill no dependa del orden entre DAGs. Idempotente.
+- **`orquestacion.py`:** `asegurar_ingesta`, `reportar_calidad`, `verificar_datos` (usa
+  `publicacion.calidad_datos`, antes `_calidad`), `asegurar_champion`, `entrenar`,
+  `publicar_pronostico`, `evaluar_publicados` (**stub: la fase 7 lo reemplaza**),
+  `registro_evento(evento, corte, dir_data)` (contenido de `registro/<corte>/<evento>.json`; para
+  `seguimiento` hoy devuelve el estado "pendiente"; la fase 7 debe devolver ahí un resumen
+  determinista del seguimiento). `rutas.dir_repo()` lee `REPOSICION_REPO`.
+- **`versionado.py`:** `versionar(evento, corte, repo, cfg, registro)` = `dvc add` + commit con
+  plumbing en `publicaciones` (sin tocar índice ni árbol; autor fijo, fecha = corte; no-op si el
+  árbol no cambia); `publicar_remoto(repo, cfg, env)` = `dvc push` (`DAGSHUB_TOKEN`) + `git push`
+  (`GITHUB_TOKEN`), `push_remoto` `auto|siempre|nunca`. `.dvc/config`: `autostage = false`.
+  `data/.gitignore` incluye `/monitoring`. Los `.dvc` de `data/` cambian en el árbol de trabajo al
+  operar (se commitean a `main` en la fase 8).
+- **Ingesta diaria** no se versiona (solo `ingestar` + `reportar_calidad`); los `.dvc` de los
+  eventos semanales/mensuales capturan el estado acumulado.
+- **Verificado en Docker** (ventana 2017-01-02 → 2017-03-20, desde `data/` sin raw/ledger/limpio/
+  backtest/models/published): 114 runs en verde (78 ingesta, 12 por cada DAG semanal), 27 commits en
+  `publicaciones`; el corte 2017-03-13 sale `degradada` (falta la venta tardía del 03-09), el
+  03-20 `ok`. El `modelo_id` baseline coincide con el de macOS; los parquet de LightGBM **no** son
+  idénticos entre macOS y Linux (la idempotencia vale dentro de un mismo entorno).
+- **Tiempos:** un reentrenamiento (backtest LightGBM de 8 orígenes) tarda ~15–28 min en Docker;
+  el pool de 1 slot lo serializa todo, así que un backfill completo de 8 meses tarda horas (8
+  reentrenamientos). Con el cache de `modelo_id`, repetir es casi inmediato.
+

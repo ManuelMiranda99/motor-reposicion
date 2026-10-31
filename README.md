@@ -12,8 +12,8 @@ diariamente en:
 
 Se basa en los datos de Corporación Favorita ([Kaggle — Store Sales](https://www.kaggle.com/competitions/store-sales-time-series-forecasting/data)).
 
-> 🚧 En construcción. Este README se completará con las instrucciones para levantar el producto desde
-> cero (DVC + Airflow 3 en Docker Compose).
+> 🚧 En construcción. La sección "Operar con Airflow" explica cómo levantar el producto con Docker;
+> "Reproducir un pronóstico publicado" se completará en la fase 8.
 
 ## Requisitos
 
@@ -107,12 +107,88 @@ python -m reposicion.cli pronosticar --corte 2017-03-13 # publica data/published
   `pronostico.parquet`, `pedido.parquet` y `manifest.json` (sin marcas de tiempo) y nunca
   sobrescribe una revisión publicada con otras entradas (`--revision N` para una nueva).
 
+## Operar con Airflow (fase 6)
+
+Airflow 3.3.2 (imagen `apache/airflow:3.3.2-python3.11` + las dependencias del proyecto) con
+`LocalExecutor` en Docker Compose. Los DAGs solo orquestan: toda la lógica vive en
+`src/reposicion/` (`orquestacion.py`, `versionado.py`).
+
+### Levantar desde cero
+
+```bash
+git clone https://github.com/ManuelMiranda99/motor-reposicion.git && cd motor-reposicion
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt -e .
+./tools/dvc_auth.sh            # token de DagsHub (ver "Datos")
+dvc pull                       # baja data/historico, data/kaggle y bandeja_sim/
+cp .env.example .env           # completa AIRFLOW_UID (id -u) y, si quieres, los tokens
+docker compose up -d --build   # primera vez: construye la imagen (~2 min)
+```
+
+1. Abre <http://localhost:8080> (usuario `airflow`, contraseña `airflow`).
+2. Despausa los cuatro DAGs (interruptor de cada uno) o, por la línea de comandos:
+   `docker compose run --rm airflow-cli airflow dags unpause <dag_id>`.
+   Con `catchup=True`, Airflow ejecuta todos los cortes entre `REPOSICION_INICIO` y
+   `REPOSICION_FIN`, sin intervención. (Alternativa: un backfill explícito,
+   `airflow backfill create --dag-id pronostico_semanal --from-date 2017-01-02 --to-date 2017-08-14`.)
+3. Los resultados quedan en `data/published/corte=YYYY-MM-DD/rev=1/` y los registros en la rama
+   `publicaciones` (`git log publicaciones`). Para bajar: `docker compose down` (conserva la base de
+   Airflow; con `-v` también la borra).
+
+Requisito en macOS para correr LightGBM **fuera** de Docker: `brew install libomp`.
+
+### Los DAGs
+
+Todos usan `catchup=True`, `max_active_runs=1` y un schedule por tiempo (cron). En Airflow 3 con un
+cron, `logical_date` es el instante del disparo: la **fecha de corte** es `logical_date.date()`.
+
+| DAG | Schedule (UTC) | Tareas |
+|---|---|---|
+| `ingesta_validacion` | `0 5 * * *` | `ingestar` → `reportar_calidad` |
+| `entrenamiento` | `0 4 * * 1` | `es_momento` (primer lunes del mes, o `forzar`) → `asegurar_ingesta` → `entrenar_y_evaluar` → `versionar_modelo` → `publicar_remoto_modelo` |
+| `pronostico_semanal` | `0 6 * * 1` | `asegurar_ingesta` → `asegurar_champion` → `verificar_datos` → `pronosticar` → `versionar_pronostico` → `publicar_remoto_pronostico` |
+| `seguimiento_desempeno` | `0 7 * * 1` | `asegurar_ingesta` → `evaluar_publicados` (fase 7) → `versionar_seguimiento` → `publicar_remoto_seguimiento` |
+
+- Las tareas que escriben en `data/`, DVC o git usan el pool `escritura_datos` (1 slot): una sola
+  escritura a la vez. Solo `publicar_remoto_*` se reintenta (2 veces, 1 minuto).
+- Reentrenamiento **manual**: dispara `entrenamiento` desde la UI con el parámetro `forzar=true`
+  (el corte es la `logical_date` del disparo).
+- Un archivo inválido va a cuarentena y se anota en el log y en el ledger, sin fallar el DAG; un
+  corte sin ventas recientes (`DatosInsuficientes`) sí falla, porque es una situación anómala.
+  `PublicacionInmutable` (la revisión existe con otras entradas) también falla, sin reintento: la
+  corrección se publica como revisión nueva (fase 7).
+
+### Otro periodo u otra bandeja (por ejemplo, el periodo no publicado)
+
+Edita `.env` y reinicia (`docker compose up -d`):
+
+```bash
+BANDEJA_PATH=/ruta/a/la/bandeja     # carpeta con una subcarpeta por fecha de entrega (solo lectura)
+REPOSICION_INICIO=2017-09-04        # primer corte (lunes)
+REPOSICION_FIN=2017-12-25           # último corte
+```
+
+La bandeja se monta en `/opt/bandeja` con `:ro`: ningún proceso puede escribir en ella. Las fechas
+por defecto están en `config/operacion.yaml`.
+
+### Versionado y push
+
+Tras cada evento (`pronostico`, `modelo`, `seguimiento`) el DAG hace `dvc add` de `data/raw`,
+`ledger`, `limpio`, `backtest`, `models`, `published` y `monitoring`, y confirma los `.dvc` y un
+`registro/<corte>/<evento>.json` en la rama **`publicaciones`** con comandos de bajo nivel de git
+(sin checkout y sin tocar el índice ni tu árbol de trabajo). Repetir un corte es un no-op. Los
+`.dvc` de `data/` sí cambian en tu árbol de trabajo al operar: se commitean a `main` con un PR.
+
+`push_remoto: auto` (`config/operacion.yaml`): con `DAGSHUB_TOKEN` en `.env` se hace `dvc push`; con
+`GITHUB_TOKEN`, `git push` de la rama `publicaciones`. Sin ellos, queda el commit local y un
+warning (no falla). Opciones: `siempre` (falla sin credenciales) y `nunca`.
+
 ## Estructura
 
 | Ruta | Contenido |
 |---|---|
 | `src/reposicion/` | Lógica del producto (ingesta, validación, features, modelos, pedido, monitoreo) |
 | `dags/` | DAGs de Airflow (solo orquestación) |
+| `docker/`, `docker-compose.yaml` | Imagen y servicios de Airflow (LocalExecutor) |
 | `config/` | Configuración versionada (costos de negocio, modelo, validación) |
 | `tests/` | Pruebas (pytest) |
 | `tools/` | Utilidades (simulador de bandeja) |
