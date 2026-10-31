@@ -32,7 +32,9 @@ pase.
    reproducir exactamente: `git worktree add ../repro <git_commit>` y luego, dentro de ese
    worktree, `dvc pull` y el mismo comando.
 3. Recalcula el pronóstico en un directorio temporal, **sin tocar `data/published`**, usando la
-   misma huella de entradas: un ledger filtrado a `fecha_entrega <= datos_hasta`.
+   misma huella de entradas: un ledger filtrado a `fecha_entrega <= datos_hasta`. Desde la fase 7,
+   `pronosticar_corte` acepta `datos_hasta` (y `revision`): una revisión se reproduce con el
+   `datos_hasta` de su manifiesto; en `rev=1` el manifiesto no lo trae y vale el corte.
 4. Compara los sha256 contra el manifiesto e imprime `REPRODUCIDO ✓` o las diferencias.
 
 Prueba: `tests/integration/test_reproducir.py`. Agrega al README la sección "Reproducir un
@@ -76,7 +78,10 @@ dilo en el resumen.
 - **`CLAUDE.md`**: actualiza los comandos (Docker, CLI) y las reglas si cambiaron.
 - **Evidencias** en `reports/`:
   - `comparacion_modelos.md` (fase 5);
-  - `seguimiento.md` (copia del reporte final de la fase 7, con sus PNG);
+  - `seguimiento.md` (copia del reporte final de la fase 7, con sus PNG): `seguimiento.publicar_reporte_reciente(dir_data, Path("reports"))`
+    o `python -m reposicion.cli seguimiento --corte <último> --copiar-reporte` (copia el último
+    `data/monitoring/reportes/<corte>.md` a `reports/seguimiento.md` y los PNG como
+    `reports/seguimiento_*.png`, con los enlaces reescritos);
   - `evidencia/` (capturas de la UI de Airflow: Grid de los 4 DAGs, un run con cuarentena, un
     run con revisión por corrección);
   - una sección "Evidencias" en el README que enlace todo.

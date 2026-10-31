@@ -22,6 +22,9 @@ from reposicion.operacion import ConfigOperacion, cargar_operacion, ultimo_prime
 from reposicion.parametros import Configs, cargar_configs
 from reposicion.publicacion import calidad_datos, directorio_publicacion, pronosticar_corte
 from reposicion.registro import Decision, leer_registro
+from reposicion.revisiones import emitir_revisiones as _emitir_revisiones
+from reposicion.seguimiento import evaluar_publicados as _evaluar_publicados
+from reposicion.seguimiento import leer_resumen
 from reposicion.validacion import cargar_validacion
 
 log = logging.getLogger(__name__)
@@ -103,10 +106,26 @@ def publicar_pronostico(corte: date, dir_data: Path, config: Path) -> str:
     return str(pronosticar_corte(corte, dir_data, cargar_configs(config), revision=1))
 
 
-def evaluar_publicados(corte: date, dir_data: Path) -> dict:
-    """Seguimiento del desempeño de lo publicado. Se implementa en la fase 7."""
-    log.warning("evaluar_publicados(%s): implementado en la fase 7; por ahora no hace nada", corte)
-    return {"estado": "implementado en la fase 7"}
+def emitir_revisiones(corte: date, dir_data: Path, config: Path) -> dict:
+    """Emite `rev=N+1` de los cortes vigentes afectados por correcciones recientes (idempotente)."""
+    nuevas = _emitir_revisiones(corte, dir_data, cargar_configs(config))
+    for ruta in nuevas:
+        log.info("revisión emitida en %s: %s", corte, ruta)
+    return {"revisiones": [f"{r.parent.name}/{r.name}" for r in nuevas]}
+
+
+def evaluar_publicados(corte: date, dir_data: Path, config: Path) -> dict:
+    """Seguimiento del desempeño de lo publicado (as-of `corte`); advierte si hay degradación."""
+    por_corte = _evaluar_publicados(corte, dir_data, cargar_configs(config))
+    resumen = leer_resumen(dir_data, corte) or {}
+    alerta = resumen.get("alerta", {})
+    if alerta.get("alerta"):
+        log.warning("%s", alerta["mensaje"])
+    return {
+        "publicaciones": len(por_corte),
+        "alerta": bool(alerta.get("alerta")),
+        "mensaje": alerta.get("mensaje"),
+    }
 
 
 def registro_evento(evento: str, corte: date, dir_data: Path) -> dict:
@@ -122,4 +141,7 @@ def registro_evento(evento: str, corte: date, dir_data: Path) -> dict:
         reg = reg[reg["corte_entrenamiento"] == pd.Timestamp(corte)]
         cols = ["modelo_id", "tipo", "promovido", "motivos", "costo_total", "wape", "fill_rate"]
         return {"modelos": json.loads(reg[cols].to_json(orient="records"))}
-    return {"estado": "implementado en la fase 7"}
+    if evento == "seguimiento":
+        resumen = leer_resumen(dir_data, corte)
+        return resumen if resumen is not None else {"estado": "sin seguimiento calculado"}
+    raise ValueError(f"evento desconocido: {evento}")

@@ -8,3 +8,5 @@ PyYAML==6.0.3
 # Versionado de datos/modelos (también lo usa Airflow para publicar).
 dvc[s3]==3.67.1
 lightgbm==4.7.0
+# Gráficos PNG del reporte de seguimiento (backend Agg, sin pantalla).
+matplotlib==3.10.8

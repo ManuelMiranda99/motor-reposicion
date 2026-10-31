@@ -70,10 +70,16 @@ def test_registro_evento_sin_publicacion_ni_modelos(tmp_path):
     corte = date(2017, 3, 13)
     assert orq.registro_evento("pronostico", corte, tmp_path) == {"manifiestos": {}}
     assert orq.registro_evento("modelo", corte, tmp_path) == {"modelos": []}
-    assert "fase 7" in orq.registro_evento("seguimiento", corte, tmp_path)["estado"]
+    assert orq.registro_evento("seguimiento", corte, tmp_path) == {
+        "estado": "sin seguimiento calculado"
+    }
+    with pytest.raises(ValueError, match="desconocido"):
+        orq.registro_evento("otro", corte, tmp_path)
 
 
-def test_evaluar_publicados_es_un_stub_explicito(tmp_path, caplog):
-    with caplog.at_level(logging.WARNING):
-        res = orq.evaluar_publicados(date(2017, 3, 13), tmp_path)
-    assert "fase 7" in res["estado"] and "fase 7" in caplog.text
+def test_evaluar_publicados_sin_publicaciones_no_falla(tmp_path):
+    res = orq.evaluar_publicados(date(2017, 3, 13), tmp_path, RAIZ / "config")
+    assert res == {"publicaciones": 0, "alerta": False, "mensaje": res["mensaje"]}
+    resumen = orq.registro_evento("seguimiento", date(2017, 3, 13), tmp_path)
+    assert resumen["publicaciones"] == 0 and resumen["cortes"] == []
+    assert orq.emitir_revisiones(date(2017, 3, 13), tmp_path, RAIZ / "config") == {"revisiones": []}

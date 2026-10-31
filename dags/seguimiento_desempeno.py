@@ -1,4 +1,8 @@
-"""Seguimiento semanal (lunes): compara lo publicado con las ventas reales (fase 7)."""
+"""Seguimiento semanal (lunes): revisiones por correcciones y desempeño vs ventas reales (fase 7).
+
+`asegurar_ingesta` → `emitir_revisiones` (rev=N+1 de los cortes vigentes afectados por una
+corrección) → `evaluar_publicados` (métricas, reporte y alerta) → versionado.
+"""
 
 from airflow.sdk import dag, task
 
@@ -37,9 +41,12 @@ def seguimiento_desempeno():
         return asdict(orq.asegurar_ingesta(corte(), dir_data(), bandeja(), config()))
 
     @task(pool=POOL)
+    def emitir_revisiones() -> dict:
+        return orq.emitir_revisiones(corte(), dir_data(), config())
+
+    @task(pool=POOL)
     def evaluar_publicados() -> dict:
-        """Implementado en la fase 7 (por ahora deja una señal clara en el log)."""
-        return orq.evaluar_publicados(corte(), dir_data())
+        return orq.evaluar_publicados(corte(), dir_data(), config())
 
     @task(pool=POOL)
     def versionar_seguimiento() -> str | None:
@@ -51,6 +58,7 @@ def seguimiento_desempeno():
 
     (
         asegurar_ingesta()
+        >> emitir_revisiones()
         >> evaluar_publicados()
         >> versionar_seguimiento()
         >> publicar_remoto_seguimiento()

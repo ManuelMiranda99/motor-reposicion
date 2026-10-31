@@ -106,6 +106,22 @@ class ConfigPromocion(BaseModel):
     reentrenamiento: Literal["mensual_primer_lunes", "semanal", "manual"] = "mensual_primer_lunes"
 
 
+class ConfigAlerta(BaseModel):
+    """Alerta de degradación (solo advertencia): WAPE móvil vs WAPE del backtest del champion."""
+
+    ventana_cortes: int = Field(4, ge=1)
+    min_dias_con_real: int = Field(7, ge=1)
+    umbral_degradacion: float = Field(0.20, ge=0)
+
+
+class ConfigMonitoreo(BaseModel):
+    """Seguimiento y revisiones (`config/monitoreo.yaml`)."""
+
+    reemitir_si_corrige: bool = True
+    ventana_correcciones_dias: int = Field(7, ge=1)
+    alerta: ConfigAlerta = ConfigAlerta()
+
+
 @dataclass(frozen=True)
 class Configs:
     """Todas las configuraciones que necesitan features, modelos, backtest, pedido y publicación."""
@@ -115,6 +131,7 @@ class Configs:
     fuentes: ConfigFuentes
     validacion: ConfigValidacion = field(default_factory=ConfigValidacion)
     promocion: ConfigPromocion = field(default_factory=ConfigPromocion)
+    monitoreo: ConfigMonitoreo = field(default_factory=ConfigMonitoreo)
 
 
 def cargar_modelo(ruta: str | Path) -> ConfigModelo:
@@ -129,6 +146,10 @@ def cargar_promocion(ruta: str | Path) -> ConfigPromocion:
     return ConfigPromocion.model_validate(cargar_yaml(ruta))
 
 
+def cargar_monitoreo(ruta: str | Path) -> ConfigMonitoreo:
+    return ConfigMonitoreo.model_validate(cargar_yaml(ruta))
+
+
 def cargar_configs(dir_config: str | Path) -> Configs:
     d = Path(dir_config)
     return Configs(
@@ -137,4 +158,5 @@ def cargar_configs(dir_config: str | Path) -> Configs:
         cargar_fuentes(d / "sources.yaml"),
         cargar_validacion(d / "validation.yaml"),
         cargar_promocion(d / "promotion.yaml"),
+        cargar_monitoreo(d / "monitoreo.yaml"),
     )
