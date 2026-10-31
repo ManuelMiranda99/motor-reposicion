@@ -107,6 +107,22 @@ python -m reposicion.cli pronosticar --corte 2017-03-13 # publica data/published
   `pronostico.parquet`, `pedido.parquet` y `manifest.json` (sin marcas de tiempo) y nunca
   sobrescribe una revisión publicada con otras entradas (`--revision N` para una nueva).
 
+## Seguimiento y revisiones (fase 7)
+
+```bash
+python -m reposicion.cli seguimiento --corte 2017-08-14 --revisiones   # emite revisiones y evalúa
+python -m reposicion.cli seguimiento --corte 2017-08-14 --copiar-reporte  # además copia a reports/
+```
+
+- `seguimiento` compara cada pronóstico publicado con las ventas reales visibles en el corte de
+  evaluación y escribe, en `data/monitoring/corte=<corte>/`, las métricas por corte, familia y
+  horizonte, y en `data/monitoring/reportes/<corte>.md` el reporte (con PNG): **ahí se ve el
+  desempeño**. Los días sin real figuran como *real pendiente*.
+- `--revisiones` (en Airflow, la tarea `emitir_revisiones`) emite `rev=N+1` de los cortes todavía
+  vigentes que afecta una corrección entregada en la última semana. Nunca se reescribe un publicado.
+- Si el WAPE móvil de 4 cortes supera en más de 20% al del backtest del champion, el reporte y el
+  log traen una advertencia (no reentrena). Los umbrales están en `config/monitoreo.yaml`.
+
 ## Operar con Airflow (fase 6)
 
 Airflow 3.3.2 (imagen `apache/airflow:3.3.2-python3.11` + las dependencias del proyecto) con
@@ -146,7 +162,7 @@ cron, `logical_date` es el instante del disparo: la **fecha de corte** es `logic
 | `ingesta_validacion` | `0 5 * * *` | `ingestar` → `reportar_calidad` |
 | `entrenamiento` | `0 4 * * 1` | `es_momento` (primer lunes del mes, o `forzar`) → `asegurar_ingesta` → `entrenar_y_evaluar` → `versionar_modelo` → `publicar_remoto_modelo` |
 | `pronostico_semanal` | `0 6 * * 1` | `asegurar_ingesta` → `asegurar_champion` → `verificar_datos` → `pronosticar` → `versionar_pronostico` → `publicar_remoto_pronostico` |
-| `seguimiento_desempeno` | `0 7 * * 1` | `asegurar_ingesta` → `evaluar_publicados` (fase 7) → `versionar_seguimiento` → `publicar_remoto_seguimiento` |
+| `seguimiento_desempeno` | `0 7 * * 1` | `asegurar_ingesta` → `emitir_revisiones` → `evaluar_publicados` → `versionar_seguimiento` → `publicar_remoto_seguimiento` |
 
 - Las tareas que escriben en `data/`, DVC o git usan el pool `escritura_datos` (1 slot): una sola
   escritura a la vez. Solo `publicar_remoto_*` se reintenta (2 veces, 1 minuto).
@@ -155,7 +171,7 @@ cron, `logical_date` es el instante del disparo: la **fecha de corte** es `logic
 - Un archivo inválido va a cuarentena y se anota en el log y en el ledger, sin fallar el DAG; un
   corte sin ventas recientes (`DatosInsuficientes`) sí falla, porque es una situación anómala.
   `PublicacionInmutable` (la revisión existe con otras entradas) también falla, sin reintento: la
-  corrección se publica como revisión nueva (fase 7).
+  corrección se publica como revisión nueva (`emitir_revisiones`, ver "Seguimiento").
 
 ### Otro periodo u otra bandeja (por ejemplo, el periodo no publicado)
 

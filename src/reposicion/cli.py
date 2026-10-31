@@ -16,6 +16,8 @@ from reposicion.ingesta import ingestar
 from reposicion.modelos import fabrica
 from reposicion.parametros import cargar_configs
 from reposicion.publicacion import pronosticar_corte
+from reposicion.revisiones import emitir_revisiones
+from reposicion.seguimiento import dir_reportes, evaluar_publicados, publicar_reporte_reciente
 from reposicion.validacion import cargar_validacion
 
 
@@ -67,6 +69,19 @@ def _cmd_pronosticar(args: argparse.Namespace) -> None:
     print(f"publicado: {ruta}")
 
 
+def _cmd_seguimiento(args: argparse.Namespace) -> None:
+    cfgs = cargar_configs(rutas.RAIZ_REPO / "config")
+    dir_data = Path(args.data) if args.data else rutas.dir_data()
+    corte = date.fromisoformat(args.corte)
+    if args.revisiones:
+        for ruta in emitir_revisiones(corte, dir_data, cfgs):
+            print(f"revisión emitida: {ruta}")
+    por_corte = evaluar_publicados(corte, dir_data, cfgs)
+    print(f"{len(por_corte)} publicaciones evaluadas; reporte: {dir_reportes(dir_data)}/{corte}.md")
+    if args.copiar_reporte:
+        print(f"copia: {publicar_reporte_reciente(dir_data, rutas.RAIZ_REPO / 'reports')}")
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="reposicion")
@@ -94,6 +109,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--revision", type=int, default=1, help="número de revisión (por defecto 1)")
     p.add_argument("--data", help="raíz de datos (por defecto REPOSICION_DATA)")
     p.set_defaults(func=_cmd_pronosticar)
+    p = sub.add_parser("seguimiento", help="compara lo publicado con las ventas reales")
+    p.add_argument("--corte", required=True, help="corte de evaluación (YYYY-MM-DD)")
+    p.add_argument("--revisiones", action="store_true", help="antes, emite las revisiones debidas")
+    p.add_argument("--copiar-reporte", action="store_true", help="copia el reporte a reports/")
+    p.add_argument("--data", help="raíz de datos (por defecto REPOSICION_DATA)")
+    p.set_defaults(func=_cmd_seguimiento)
     args = parser.parse_args(argv)
     args.func(args)
 

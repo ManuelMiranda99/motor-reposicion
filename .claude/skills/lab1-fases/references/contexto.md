@@ -1,4 +1,4 @@
-# Contexto del proyecto (estado al cerrar la fase 6)
+# Contexto del proyecto (estado al cerrar la fase 7)
 
 ## Contenido
 
@@ -13,6 +13,7 @@
 9. Fase 4: lo que quedó implementado
 10. Fase 5: lo que quedó implementado
 11. Fase 6: lo que quedó implementado
+12. Fase 7: lo que quedó implementado
 
 ---
 
@@ -144,7 +145,8 @@ a ser `corte=`).
 | `data/backtest/<modelo>/corte=YYYY-MM-DD/` | F4/F5 | `predicciones.parquet` (store_nbr, family, origen, fecha_objetivo, h, y, `q…`) y `metricas.parquet` (nivel/clave: global y por origen) |
 | `data/models/<modelo_id>/` + `data/models/registro.parquet` | F5 | modelos entrenados y su historial de promoción |
 | `data/published/corte=YYYY-MM-DD/rev=N/` | F5/F6 | `pronostico.parquet`, `pedido.parquet`, `manifest.json` |
-| `data/monitoring/` | F7 | métricas por corte y reportes |
+| `data/monitoring/corte=<corte_eval>/` | F7 | `metricas_por_corte.parquet`, `metricas_por_familia.parquet`, `metricas_por_h.parquet`, `resumen.json` (recálculo as-of `corte_eval`) |
+| `data/monitoring/reportes/<corte_eval>.md` (+ `<corte_eval>_*.png`) | F7 | reporte de seguimiento |
 | `reports/` (en git, pequeño) | F5 y F8 | comparación de modelos y evidencias |
 
 La bandeja se ubica con la variable `REPOSICION_BANDEJA` (por defecto `bandeja_sim/`).
@@ -170,6 +172,7 @@ La bandeja se ubica con la variable `REPOSICION_BANDEJA` (por defecto `bandeja_s
 | `model.yaml` | F4 | horizonte, cuantiles, origenes, ventanas, parámetros de modelos |
 | `business.yaml` | F4 | costos de quiebre/merma por grupo de familias, cobertura, lead time |
 | `promotion.yaml` | F5 | criterio champion/challenger |
+| `monitoreo.yaml` | F7 | `reemitir_si_corrige`, `ventana_correcciones_dias`, alerta de degradación (`ventana_cortes`, `min_dias_con_real`, `umbral_degradacion`) |
 | `operacion.yaml` | F6 | inicio/fin del periodo (sobrescribibles con `REPOSICION_INICIO`/`REPOSICION_FIN`), `push_remoto`, rama `publicaciones`, directorios DVC, autor de los commits |
 
 Carga siempre con `reposicion.config.cargar_yaml` + un modelo pydantic, como en
@@ -235,7 +238,7 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
 
 ## 10. Fase 5: lo que quedó implementado (para las fases 6 a 8)
 
-- **Configs:** `parametros.Configs(modelo, negocio, fuentes, validacion, promocion)`;
+- **Configs:** `parametros.Configs(modelo, negocio, fuentes, validacion, promocion, monitoreo)`;
   `cargar_configs(dir)` carga los cinco YAML (`validation.yaml` y `promotion.yaml` incluidos).
   `ConfigModelo` tiene ahora `lightgbm`, `lightgbm_semanal` y `objetivo_transformado`.
 - **Modelos:** `modelos.fabrica("baseline"|"lgbm", cfgs)`; `modelos.clase_de(tipo)`.
@@ -316,3 +319,40 @@ T, T+1, …, T+13 (h = 1..14). La ventas conocidas llegan hasta T−1.
   el pool de 1 slot lo serializa todo, así que un backfill completo de 8 meses tarda horas (8
   reentrenamientos). Con el cache de `modelo_id`, repetir es casi inmediato.
 
+## 12. Fase 7: lo que quedó implementado (para la fase 8)
+
+- **Módulos:** `seguimiento.py` (`evaluar_publicados(corte_eval, dir_data, cfgs) -> DataFrame` con
+  las métricas por corte; `listar_publicaciones`, `evaluar_alerta`, `leer_resumen`,
+  `publicar_reporte_reciente(dir_data, destino) -> Path | None`), `revisiones.py`
+  (`emitir_revisiones(corte_eval, dir_data, cfgs) -> list[Path]`, `cortes_publicados`),
+  `config/monitoreo.yaml` (`parametros.ConfigMonitoreo`, `Configs.monitoreo`). `matplotlib==3.10.8`
+  en `requirements.txt` (backend Agg; la imagen de Docker lo trae).
+- **Diferencia con la referencia:** las salidas van en una partición por corte de evaluación
+  (`data/monitoring/corte=<corte_eval>/…`), no en parquets únicos en `data/monitoring/`. Cada
+  evaluación es un recálculo completo y determinista; `registro_evento("seguimiento")` devuelve el
+  `resumen.json` de ese corte. `evaluar_publicados` de `orquestacion` recibe `config` (y
+  `emitir_revisiones` es una tarea nueva del DAG).
+- **`pronosticar_corte(corte, dir_data, cfgs, revision=1, datos_hasta=None, motivo=None,
+  revision_de=None)`:** `datos_hasta` (>= corte) es la fecha as-of de lectura; las features siguen
+  ancladas al origen `corte`, el champion es el vigente en `corte`. Solo si se pasa `datos_hasta`, el
+  manifiesto agrega `datos_hasta`, `emitido_en` (= `datos_hasta`), `revision_de` y `motivo`; los
+  `rev=1` no cambian (mismos bytes que antes). `reproducir` (fase 8) debe usar `datos_hasta` del
+  manifiesto al reproducir una revisión.
+- **Revisiones:** correcciones en `(corte_eval - 7, corte_eval]` (`es_correccion` o `es_tardio`),
+  `cortes_afectados`, vigencia `corte_eval <= P + horizonte - 1`, idempotente por
+  `datos_hasta == corte_eval`. Una corrección entregada el viernes se detecta el lunes siguiente.
+  Una revisión puede ser numéricamente idéntica (petróleo del 2017-05-02: el modelo no lo ve).
+- **Visibilidad en el seguimiento:** una publicación es visible en `corte_eval` si `corte <=
+  corte_eval` y `emitido_en <= corte_eval` (el `rev=1` no tiene `emitido_en`: cuenta como su corte).
+- **Alerta:** WAPE agrupado de los últimos 4 cortes (última revisión, >= 7 días con real) vs el WAPE
+  de `registro.parquet` del champion vigente; > 20% → advertencia (log + reporte, `resumen.json`).
+- **Pruebas:** `tests/unit/test_seguimiento.py`, `test_revisiones.py`, `test_orquestacion.py` y
+  `tests/integration/test_e2e.py` (11 pruebas, ~15 s, con la bandeja sintética, el baseline y los
+  escenarios corrección de ventas y de petróleo, tardío, faltante, duplicado, inválido+reentrega y
+  alta de tienda; idempotencia, backfill = operación y sin leakage).
+- **Verificado con datos reales** (copia aislada, champion `lgbm-2017-01-02`, sin reentrenos
+  mensuales, cortes 2017-01-02 → 08-14, ~3-5 s por ciclo): 36 publicaciones, 3 revisiones
+  (02-06 por la corrección de ventas del 02-03, 03-13 por la venta tardía del 03-09 y 05-08 por el
+  petróleo del 05-02, esta última numéricamente idéntica); el 07-04 sale como real pendiente en los
+  cortes 06-26 y 07-03; el corte 2017-01-02 tiene WAPE 0.563 (las ventas del 01-01 son casi cero).
+  Verificado en Docker (`airflow dags test seguimiento_desempeno` 2017-02-06 y 2017-02-13).

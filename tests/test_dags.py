@@ -87,4 +87,10 @@ def test_orden_de_las_tareas(dagbag):
     assert orden("entrenamiento")[:3] == ["es_momento", "asegurar_ingesta", "entrenar_y_evaluar"]
     assert orden("ingesta_validacion") == ["ingestar", "reportar_calidad"]
     # La ingesta va antes de todo lo que lee `asof(corte)`.
-    assert orden("seguimiento_desempeno")[0] == "asegurar_ingesta"
+    assert orden("seguimiento_desempeno") == [
+        "asegurar_ingesta",
+        "emitir_revisiones",
+        "evaluar_publicados",
+        "versionar_seguimiento",
+        "publicar_remoto_seguimiento",
+    ]

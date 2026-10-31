@@ -86,6 +86,11 @@ def _metricas_filas(g: pd.DataFrame, qs: list[str]) -> dict[str, float]:
     return m
 
 
+def metricas_tecnicas(g: pd.DataFrame, qs: list[str]) -> dict[str, float]:
+    """WAPE, RMSLE, pinball por cuantil y cobertura P10–P90 de `g` (con `y` y las columnas `q…`)."""
+    return _metricas_filas(g, qs)
+
+
 def metricas_pedido(g: pd.DataFrame, cfg_negocio: ConfigNegocio) -> dict[str, float]:
     g = g.dropna(subset=["y_cobertura"])
     if g.empty:

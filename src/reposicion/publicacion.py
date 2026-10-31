@@ -7,8 +7,9 @@ data/published/corte=<T>/rev=<N>/
 
 Las publicaciones son **inmutables** y la ejecución es **idempotente**: repetir `rev=N` con las
 mismas entradas, configuración y modelo es un no-op (mismos bytes); con otras entradas lanza
-`PublicacionInmutable` y no toca lo publicado. La fase 7 decide cuándo emitir una revisión nueva.
-El manifiesto no lleva marcas de tiempo de reloj.
+`PublicacionInmutable` y no toca lo publicado. Una revisión (`rev>=2`, ver `revisiones.py`) usa
+`datos_hasta`: la fecha hasta la que se leen los datos (as-of), posterior al corte, que sigue
+siendo el origen del pronóstico. El manifiesto no lleva marcas de tiempo de reloj.
 """
 
 from __future__ import annotations
@@ -132,12 +133,29 @@ def _validar(pron: pd.DataFrame, n_series: int, cfgs: Configs, qs: list[str]) ->
         raise PublicacionInvalida("; ".join(problemas))
 
 
-def pronosticar_corte(corte: date, dir_data: Path, cfgs: Configs, revision: int = 1) -> Path:
-    """Genera y publica el pronóstico y el pedido de `corte`. Devuelve el directorio `rev=N`."""
+def pronosticar_corte(
+    corte: date,
+    dir_data: Path,
+    cfgs: Configs,
+    revision: int = 1,
+    datos_hasta: date | None = None,
+    motivo: str | None = None,
+    revision_de: int | None = None,
+) -> Path:
+    """Genera y publica el pronóstico y el pedido de `corte`. Devuelve el directorio `rev=N`.
+
+    `datos_hasta` (opcional, `>= corte`) es la fecha as-of con la que se leen los datos: por
+    defecto, el corte. Las features siguen ancladas al origen `corte` (solo usan lo anterior a
+    él), pero ven las correcciones entregadas hasta `datos_hasta`. El modelo es el champion
+    vigente en `corte`. `motivo` y `revision_de` se anotan en el manifiesto de una revisión.
+    """
     dir_data = Path(dir_data)
+    if datos_hasta is not None and datos_hasta < corte:
+        raise ValueError(f"datos_hasta ({datos_hasta}) es anterior al corte ({corte})")
+    visto = corte if datos_hasta is None else datos_hasta
     destino = directorio_publicacion(dir_data, corte, revision)
-    calidad, advertencias = calidad_datos(corte, dir_data, cfgs)
-    huella = huella_entradas(corte, dir_data)
+    calidad, advertencias = calidad_datos(visto, dir_data, cfgs)
+    huella = huella_entradas(visto, dir_data)
     sha_negocio, sha_modelo = hash_config(cfgs.negocio), hash_config(cfgs.modelo)
 
     modelo_id = champion_vigente(corte, dir_data)
@@ -167,7 +185,7 @@ def pronosticar_corte(corte: date, dir_data: Path, cfgs: Configs, revision: int 
         return destino
 
     # --- pronóstico
-    datos = cargar_datos_asof(corte, dir_data)
+    datos = cargar_datos_asof(visto, dir_data)
     X = construir_features(datos, [corte], cfgs.modelo, cfgs.fuentes, con_objetivo=False)
     if modelo_id.startswith(BASELINE + "-") and champion_vigente(corte, dir_data) is None:
         modelo = entrenar_modelo(BASELINE, corte, dir_data, cfgs, datos)
@@ -219,6 +237,15 @@ def pronosticar_corte(corte: date, dir_data: Path, cfgs: Configs, revision: int 
         "series": n_series,
         "sha256_archivos": {a: _sha256_archivo(tmp / a) for a in ARCHIVOS},
     }
+    if datos_hasta is not None:
+        manifiesto.update(
+            {
+                "datos_hasta": datos_hasta.isoformat(),
+                "emitido_en": datos_hasta.isoformat(),
+                "revision_de": revision_de,
+                "motivo": motivo,
+            }
+        )
     (tmp / "manifest.json").write_text(
         json.dumps(manifiesto, sort_keys=True, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",

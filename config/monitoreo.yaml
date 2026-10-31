@@ -1,0 +1,12 @@
+# Seguimiento del desempeño y revisiones (fase 7) — ver src/reposicion/{seguimiento,revisiones}.py
+# Corrección que afecta un pronóstico publicado: nunca se reescribe. Si su horizonte sigue vigente,
+# se emite una revisión rev=N+1 (emitido_en = corte en que se detectó).
+reemitir_si_corrige: true
+# Ventana, en días, hacia atrás desde el corte de evaluación en que se buscan correcciones nuevas
+# (el seguimiento corre semanalmente, así que son los 7 días desde la evaluación anterior).
+ventana_correcciones_dias: 7
+# Alerta de degradación: solo advertencia (reporte y log); no reentrena automáticamente.
+alerta:
+  ventana_cortes: 4          # WAPE móvil (agrupado) de los últimos 4 cortes publicados
+  min_dias_con_real: 7       # un corte entra a la ventana con al menos 7 de sus 14 días con real
+  umbral_degradacion: 0.20   # advierte si el WAPE móvil supera en más de 20% al del backtest

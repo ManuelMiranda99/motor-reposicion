@@ -20,6 +20,7 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
 | 9 | Pedido sugerido (newsvendor) | Aceptada |
 | 10 | Criterio de reemplazo de modelo, registro y publicación offline | Aceptada |
 | 11 | Orquestación con Airflow y versionado de publicaciones | Aceptada |
+| 12 | Seguimiento del desempeño, revisiones por corrección y alertas | Aceptada |
 
 ---
 
@@ -161,8 +162,20 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   como vigente); inválido = `cuarentena` (versión 0). `es_tardio` marca la primera versión válida
   entregada después de `fecha_dato + lag_esperado + tolerancia`.
 - **Correcciones y publicados:** `correcciones_entre` y `cortes_afectados` (funciones puras) dicen
-  qué cortes ya calculados cambiarían; la fase 7 los recalcula como una **nueva revisión** y nunca
-  sobrescribe lo publicado.
+  qué cortes ya calculados cambiarían. Un publicado **nunca se reescribe**. En el seguimiento
+  semanal (fase 7, `revisiones.emitir_revisiones`): (a) el seguimiento se recalcula siempre con el
+  dato corregido (lee las ventas as-of el corte de evaluación); (b) si el corte afectado sigue
+  **vigente** (`corte_eval <= P + horizonte - 1`) y `reemitir_si_corrige: true`
+  (`config/monitoreo.yaml`), se emite `rev=N+1` con `pronosticar_corte(P, revision=N+1,
+  datos_hasta=corte_eval)`: el origen y el horizonte siguen siendo los de P, pero los datos son los
+  visibles en `corte_eval`, y el modelo es el champion vigente en P. El manifiesto registra
+  `revision_de`, `motivo`, `datos_hasta` y `emitido_en` (= el corte en que se detectó). Las
+  correcciones se buscan en la ventana `(corte_eval - 7, corte_eval]`; un corte cuyo horizonte ya
+  terminó solo recalcula su seguimiento. Es idempotente: si ya existe una revisión con
+  `datos_hasta == corte_eval` no se emite otra (no hay `rev=N+2` al re-correr) y
+  `pronosticar_corte` es un no-op con las mismas entradas. Una revisión puede ser numéricamente
+  idéntica a la anterior cuando la corrección no entra en las features (verificado con el petróleo
+  del 2017-05-02: el modelo solo usa el último valor ≤ O−1); se emite igual y queda trazada.
 - **Archivo modificado en la bandeja:** si un archivo ya ingerido cambia de contenido en su misma
   ruta, se ignora con una advertencia (una corrección real llega en una carpeta posterior).
 - **Alternativa descartada:** sobrescribir la fila anterior (se perdería qué se sabía en cada corte).
@@ -375,3 +388,34 @@ y manejo de correcciones se desarrollarán en las fases 2 y 3.
   `.dvc` son acumulados, igualmente capturan lo ingerido (evita 225 commits y `dvc add` diarios).
 - **Seguimiento:** `evaluar_publicados` es un stub explícito hasta la fase 7.
 
+## 12. Seguimiento del desempeño, revisiones por corrección y alertas
+
+- **Contexto:** hay que comparar lo publicado con las ventas que van llegando, reaccionar a las
+  correcciones sin tocar lo publicado y avisar si el modelo se degrada.
+- **Seguimiento (`seguimiento.evaluar_publicados`).** Recálculo completo y determinista as-of
+  `corte_eval`: une cada publicación `(corte, rev)` visible (con `corte <= corte_eval` y
+  `emitido_en <= corte_eval`, para que evaluar un corte antiguo no dependa de revisiones emitidas
+  después) con `asof("ventas", corte_eval)`. Por publicación: días con real (`completo` / `parcial` /
+  `sin_datos`), WAPE, RMSLE, sesgo, pinball por cuantil, cobertura P10–P90 y costo newsvendor,
+  este último solo si los 7 días de cobertura ya tienen real (si no, `pendiente`). También por
+  familia y por horizonte. Un día sin real (el 2017-07-04 que nunca llega) queda como *real
+  pendiente*, no como error. Las ventas corregidas se reflejan solas.
+- **Partición por corte de evaluación:** `data/monitoring/corte=<corte_eval>/` (`metricas_por_corte`,
+  `metricas_por_familia`, `metricas_por_h` y `resumen.json`) y `data/monitoring/reportes/<corte_eval>.md`
+  (+ PNG). Se eligió una partición por corte (regla 5 de CLAUDE.md) en lugar de un único parquet
+  sobrescrito: evaluar un corte viejo no pisa el estado del reciente, y cada evento de Airflow
+  versiona su propio resultado. Alternativa descartada: un parquet acumulado (depende del orden de
+  ejecución).
+- **Reporte (decisión del usuario):** Markdown + PNG con matplotlib (backend Agg, `matplotlib==3.10.8`
+  en `requirements.txt`, así también está en la imagen de Docker): WAPE y costo por corte, cobertura
+  vs 80% y WAPE por familia. Los PNG no llevan marcas de tiempo (determinismo dentro de un mismo
+  entorno). `publicar_reporte_reciente` copia el más reciente a `reports/seguimiento.md` (se usa en
+  la fase 8). Alternativa descartada: HTML estático.
+- **Alerta (decisión del usuario):** solo advertencia en el reporte y en el log de Airflow si el WAPE
+  móvil agrupado de los últimos 4 cortes (última revisión de cada uno, con al menos 7 de 14 días con
+  real) supera en más de 20% al WAPE del backtest del champion vigente (`data/models/registro.parquet`).
+  No dispara el reentrenamiento. Sin 4 cortes en la ventana no hay alerta. Umbrales en
+  `config/monitoreo.yaml`. Alternativa descartada: reentrenar automáticamente (el reentrenamiento
+  es mensual + manual por decisión de la fase 5).
+- **Limitación conocida:** el WAPE del backtest se calcula con datos revisados y 8 orígenes; el del
+  seguimiento es el de la operación real con datos as-of, así que se esperan diferencias.

@@ -53,10 +53,11 @@ orientativas para una sola persona.
 - [x] Corridas reales en Docker verificadas (ver `plan/ESTADO.md`); el backfill completo hasta 2017-08-14 queda para la fase 8.
 
 ## Fase 7 — Monitoreo y reprocesamiento (1 día) · `feat/monitoreo`
-- [ ] `monitor.py` + reporte HTML/MD por corte y acumulado (métricas por semana, por familia y
-      cobertura).
-- [ ] DAG `reprocess_corrections` y prueba end-to-end de una corrección.
-- [ ] Prueba de idempotencia (dos corridas → mismos hashes).
+- [x] `seguimiento.py` + reporte MD/PNG por corte de evaluación (métricas por corte, por familia y
+      cobertura) y alerta de degradación.
+- [x] `revisiones.py` (`emitir_revisiones`) en el DAG `seguimiento_desempeno` y prueba end-to-end de
+      una corrección.
+- [x] Prueba de idempotencia (dos corridas → mismos hashes), backfill = operación y sin leakage.
 
 ## Fase 8 — Reproducibilidad, documentación y entrega (1 día) · `feat/docs`
 - [ ] `reposicion.cli reproduce --cutoff` + sección del README "Reproducir un pronóstico pasado".
