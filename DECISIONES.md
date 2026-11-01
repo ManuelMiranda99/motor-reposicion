@@ -583,6 +583,28 @@ pasó a `tools/diagnostico_corte_2017_01_02.py`).
 - *Pruebas:* `test_revision_interrumpida_se_puede_reintentar`,
   `test_publicacion_interrumpida_no_cuenta_como_publicada`.
 
+**Resultado del backfill corregido (2017-01-02 → 2017-08-14, Docker, 324 runs en verde, 3 h 54 min):**
+
+| | Antes | Después |
+|---|---|---|
+| WAPE del corte 2017-01-02 | 0.563 | 0.217 |
+| WAPE global (suma de errores / suma de ventas) | 0.1547 | 0.1407 |
+| WAPE de los demás cortes | 0.107–0.196 | 0.107–0.188 |
+| WAPE móvil 4 cortes (08-14) vs backtest | 0.1370 vs 0.1742 | 0.1366 vs 0.1746 |
+| Cobertura P10–P90 (media / mínima por corte) | 0.751 / 0.526 | 0.760 / 0.604 |
+| Costo de negocio, suma de cortes completos | 16,926,751 | 14,061,939 |
+| Pedido de la tienda 52, corte 04-17 / 04-24 | 0 / 55,613 | 619 / 51,007 |
+| Alertas de degradación | 1 | 0 |
+| Revisiones | 3 (02-06, 03-13, 05-08) | las mismas 3 |
+| Promociones de modelo | baseline y LightGBM el 01-02; 7 challengers no superan el criterio | igual |
+| Backtest 08-14 (baseline / LightGBM) | WAPE 0.1425 / 0.1207, costo -20.4% | WAPE 0.1412 / 0.1197, costo -19.9% |
+
+La tienda 52 sigue en arranque en frío (619 unidades pedidas contra ~115 mil vendidas en su semana de
+apertura): ya no se fuerza a 0, pero sin historia de ventas el modelo no tiene de dónde aprender.
+Con la bandeja entregada A1 no cambia ningún resultado: las reentregas (05-12, 06-23, 07-28) llegan
+antes del lunes siguiente, así que ningún corte publicado las echó en falta; se prueba con escenarios
+sintéticos en otras fechas. `reproducir` da REPRODUCIDO en 6 publicaciones (3 `rev=1`, 3 revisiones).
+
 ## Limitaciones conocidas
 
 - **Ventas censuradas:** `sales` es la demanda observada, censurada por quiebres de stock (no hay
@@ -603,7 +625,7 @@ pasó a `tools/diagnostico_corte_2017_01_02.py`).
   (ventas ~1% de un día normal, cierre de año). Era un defecto de las features, no una limitación
   inevitable: se corrigió con `dias_sin_operacion` (§14, M1). Aun así sigue siendo el corte con
   menos historia comparable (la ventana de entrenamiento nunca tuvo un lunes posterior al 1-ene) y
-  su WAPE queda por encima del resto; ver §14 para los números.
+  su WAPE (0.217) queda por encima del resto (0.107–0.188).
 - **Simulador, no la bandeja oficial:** las situaciones operativas son las inyectadas por el
   simulador (`bandeja_sim/_escenarios.csv`); un formato real distinto exige un adaptador en la ingesta
   y `config/sources.yaml`.
