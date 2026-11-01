@@ -353,15 +353,15 @@ despausados a la vez (sin intervención):
 | Concepto | Resultado |
 |---|---|
 | Runs | 324, todos en verde: 225 `ingesta_validacion` (diarios) + 33 × 3 DAGs semanales |
-| Duración | 3 h 53 min de reloj (12:38 → 16:31 UTC), con las tareas de escritura serializadas |
+| Duración | 3 h 54 min de reloj (15:57 → 19:51, hora local), con las tareas de escritura serializadas |
 | Reentrenamientos | 8 (primer lunes de cada mes, enero–agosto), ~15–28 min cada uno |
-| Promociones de modelo | baseline como champion inicial y LightGBM promovido el 2017-01-02; los 7 challengers siguientes no superaron el criterio (`config/promotion.yaml`) y el champion vigente al 2017-08-14 es `lgbm-2017-01-02-496d76f4` |
+| Promociones de modelo | baseline como champion inicial y LightGBM promovido el 2017-01-02; los 7 challengers siguientes no superaron el criterio (`config/promotion.yaml`) y el champion vigente al 2017-08-14 es `lgbm-2017-01-02-d1a22558` |
 | Publicaciones | 36: 33 `rev=1` + 3 revisiones por corrección (`2017-02-06/rev=2`, `2017-03-13/rev=2`, `2017-05-08/rev=2`); 7 de los `rev=1` salen `degradada` (ventas atrasadas o faltantes, promociones que acaban el 08-15) |
 | Ingesta | 834 archivos hasta el 08-14: 828 válidos, 5 en cuarentena (ventas 05-10, transacciones 06-05, ventas 06-21, promociones 07-20, ventas 07-26), 1 duplicado idéntico |
 | Registro en git | 74 commits en la rama `publicaciones` (33 pronósticos + 33 seguimientos + 8 modelos) |
-| Alertas de degradación | 1 (corte 2017-01-30: el WAPE móvil incluye el corte 2017-01-02, de WAPE 0.563 por el 01-01 casi en cero) |
-| Desempeño (seguimiento al 2017-08-14) | WAPE por corte 0.107–0.196 (salvo el corte 01-02); WAPE móvil de 4 cortes 0.1370 vs 0.1742 del backtest; cobertura P10–P90 0.69–0.82 |
-| Reproducción | `reproducir` da `REPRODUCIDO ✓` (en Docker) para `2017-03-13/rev=1`, `2017-08-14/rev=1`, `2017-02-06/rev=2`, `2017-03-13/rev=2` y `2017-05-08/rev=2` |
+| Alertas de degradación | 0 (antes de las correcciones de la revisión independiente había 1, por el corte 2017-01-02 con WAPE 0.563; ahora ese corte tiene 0.217) |
+| Desempeño (seguimiento al 2017-08-14) | WAPE por corte 0.107–0.188 (el corte 01-02, el de menos historia, 0.217); WAPE global 0.1407; WAPE móvil de 4 cortes 0.1366 vs 0.1746 del backtest; cobertura P10–P90 0.60–0.82 |
+| Reproducción | `reproducir` da `REPRODUCIDO ✓` (en Docker) para `2017-03-13/rev=1`, `2017-04-17/rev=1`, `2017-08-14/rev=1`, `2017-02-06/rev=2`, `2017-03-13/rev=2` y `2017-05-08/rev=2`; re-ejecutar los DAGs semanales de 03-13 y 03-20 no cambia ningún hash ni la rama `publicaciones` |
 
 Un primer intento del backfill falló por un incidente ajeno al código (el equipo hibernó) y se repitió
 completo desde cero: ver [DECISIONES §13](DECISIONES.md).

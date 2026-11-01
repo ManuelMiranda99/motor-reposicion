@@ -1,6 +1,6 @@
 outs:
-- md5: 2b66cf6c3c9e8ec47252159b4c69683f.dir
-  size: 7231440
+- md5: 50a6e87ed3e599785293f436020a9ee3.dir
+  size: 7610616
   nfiles: 259
   hash: md5
   path: monitoring
