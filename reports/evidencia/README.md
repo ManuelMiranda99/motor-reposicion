@@ -1,20 +1,20 @@
-# Capturas de la UI de Airflow (pendientes de tomar)
+# Capturas de la UI de Airflow
 
-No se pudieron automatizar: en el entorno de desarrollo no había un navegador controlable
-(Playwright/Chrome headless) y no se instaló nada global. Quien entrega debe tomarlas con el stack
-levantado (`docker compose up -d`, <http://localhost:8080>, usuario `airflow`, contraseña `airflow`) y
-guardarlas en esta carpeta con estos nombres:
+Capturas del backfill entregado (2017-01-02 → 2017-08-14, Airflow 3.3.2 en Docker, fechas en UTC).
+Se generan con `python tools/capturas_airflow.py` (Playwright + Chromium headless) con el stack
+levantado (`docker compose up -d`, <http://localhost:8080>, usuario `airflow`, contraseña `airflow`).
 
-| Archivo | Cómo obtenerla |
+| Captura | Qué muestra |
 |---|---|
-| `01_dags.png` | Pestaña **Dags**: los cuatro DAGs (`ingesta_validacion`, `entrenamiento`, `pronostico_semanal`, `seguimiento_desempeno`) con sus últimos runs en verde. |
-| `02_grid_ingesta_validacion.png` | Dag `ingesta_validacion` → pestaña **Grid** (runs diarios en verde). |
-| `03_grid_entrenamiento.png` | Dag `entrenamiento` → **Grid** (los lunes que no son primer lunes salen *skipped* en `es_momento`; el primer lunes de cada mes corre completo). |
-| `04_grid_pronostico_semanal.png` | Dag `pronostico_semanal` → **Grid**. |
-| `05_grid_seguimiento_desempeno.png` | Dag `seguimiento_desempeno` → **Grid**. |
-| `06_cuarentena.png` | Un run de `ingesta_validacion` con cuarentena: p. ej. **2017-05-11** (ventas negativas del 05-10) → tarea `reportar_calidad` → **Logs** (muestra el archivo en cuarentena). Otras fechas: 2017-06-08, 2017-06-22, 2017-07-10, 2017-07-27. |
-| `07_revision_por_correccion.png` | Dag `seguimiento_desempeno`, run **2017-02-13**, tarea `emitir_revisiones` → **Logs** (emite `corte=2017-02-06/rev=2` por la corrección de ventas del 02-03). |
-| `08_corte_degradado.png` | Dag `pronostico_semanal`, run **2017-03-13**, tarea `verificar_datos` → **Logs** (calidad `degradada`: falta la venta tardía del 03-09). |
+| [`01_dags.png`](01_dags.png) | Pestaña **Dags**: los cuatro DAGs (`entrenamiento`, `ingesta_validacion`, `pronostico_semanal`, `seguimiento_desempeno`) con sus últimos runs en verde. |
+| [`02_grid_ingesta_validacion.png`](02_grid_ingesta_validacion.png) | **Grid** de `ingesta_validacion`: últimos 50 runs diarios (de 225), todos en verde. |
+| [`03_grid_entrenamiento.png`](03_grid_entrenamiento.png) | **Grid** de `entrenamiento` (33 lunes): el primer lunes de cada mes corre completo; los demás quedan *skipped* tras `es_momento`. |
+| [`04_grid_pronostico_semanal.png`](04_grid_pronostico_semanal.png) | **Grid** de `pronostico_semanal`: los 33 cortes en verde (las barras altas son los lunes que esperan al champion del mes). |
+| [`05_grid_seguimiento_desempeno.png`](05_grid_seguimiento_desempeno.png) | **Grid** de `seguimiento_desempeno`: los 33 cortes en verde. |
+| [`06_cuarentena.png`](06_cuarentena.png) | Run **2017-05-11** de `ingesta_validacion`, tarea `reportar_calidad`: `ventas_2017-05-10.csv` va a cuarentena por 10 valores negativos en `sales`, sin fallar el run. |
+| [`07_revision_por_correccion.png`](07_revision_por_correccion.png) | Run **2017-02-13** de `seguimiento_desempeno`, tarea `emitir_revisiones`: la corrección de ventas del 02-03 emite `corte=2017-02-06/rev=2` (los cortes cuyo horizonte ya terminó no se reemiten). |
+| [`08_corte_degradado.png`](08_corte_degradado.png) | Run **2017-03-13** de `pronostico_semanal`, tarea `verificar_datos`: calidad `degradada` porque falta la venta tardía del 03-09. |
 
-Para el Grid, elige la ventana completa en el selector de runs (arriba a la izquierda) y captura
-la página completa. Después enlázalas desde el README (sección "Evidencias").
+Los logs de 06–08 muestran dos ejecuciones con el mismo resultado: el backfill de la fase 8 y el
+backfill repetido desde cero tras las correcciones de la revisión independiente (los logs de
+Airflow se conservaron entre ambos).

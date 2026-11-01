@@ -66,8 +66,8 @@ orientativas para una sola persona.
       el README, con otra bandeja (semilla 777, escenarios nuevos) y una ventana de 4 semanas; todo
       corrió sin intervención. (Credenciales de DVC copiadas; sin segunda cuenta de DagsHub.)
 - [x] `DECISIONES.md` completo (decisiones 1–13 "Aceptadas" y limitaciones conocidas).
-- [~] Evidencias: `reports/comparacion_modelos.md` y `reports/seguimiento.md` (+ PNG) listos;
-      **capturas de Airflow pendientes** (lista exacta en `reports/evidencia/README.md`).
+- [x] Evidencias: `reports/comparacion_modelos.md`, `reports/seguimiento.md` (+ PNG) y las 8
+      capturas de Airflow en `reports/evidencia/` (`tools/capturas_airflow.py`, Playwright).
 - [~] Acceso de los docentes: GitHub es público; DagsHub exige cuenta propia del docente +
       `tools/dvc_auth.sh` (**pendiente confirmarlo con el docente**).
 - [ ] `git tag entrega-lab1 && git push origin entrega-lab1` (lo hace el usuario tras revisar).
