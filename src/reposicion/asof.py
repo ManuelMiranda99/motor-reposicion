@@ -20,7 +20,9 @@ def asof(fuente: str, corte: date, dir_data: Path) -> pd.DataFrame:
     """Datos de `fuente` visibles en `corte` (las entregas del propio día cuentan).
 
     1. Solo filas con `fecha_disponible <= corte`.
-    2. Por cada `fecha_dato`, solo la versión máxima disponible.
+    2. Por cada `fecha_dato`, solo la versión vigente: la de mayor `fecha_disponible` (la última
+       entregada) y, en empate, la de mayor `version`. La versión numera el orden de ingesta, que
+       puede diferir del de entrega si un archivo aparece tarde en una carpeta antigua.
     3. En snapshots (`tiendas`), solo el de mayor `fecha_dato`.
     """
     df = leer_limpio(dir_data, fuente)
@@ -29,8 +31,9 @@ def asof(fuente: str, corte: date, dir_data: Path) -> pd.DataFrame:
         return df.drop(columns=["version", "origen"]).reset_index(drop=True)
     if fuente == "tiendas":
         df = df[df["fecha_dato"] == df["fecha_dato"].max()]
-    maxima = df.groupby("fecha_dato")["version"].transform("max")
-    df = df[df["version"] == maxima]
+    df = df.assign(_clave=df["fecha_disponible"].astype("int64") * 10_000 + df["version"])
+    df = df[df["_clave"] == df.groupby("fecha_dato")["_clave"].transform("max")]
+    df = df.drop(columns="_clave")
     return df.drop(columns=["version", "origen"]).reset_index(drop=True)
 
 

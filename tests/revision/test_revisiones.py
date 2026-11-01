@@ -166,9 +166,6 @@ def test_publicacion_interrumpida_no_cuenta_como_publicada(revision_interrumpida
 
 
 # --------------------------- H-REV-4 corrección de feriados que afecta la vista hacia adelante
-@pytest.mark.xfail(
-    strict=True, reason="B1: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_correccion_de_feriados_marca_los_cortes_cuya_vista_adelante_cambia():
     """Las features miran feriados hasta `TOPE_DIAS_FERIADO` (30) días después del último día
     objetivo, pero `cortes_afectados` solo marca P si `fecha_dato <= P + h - 1`, y en feriados

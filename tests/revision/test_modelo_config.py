@@ -19,8 +19,7 @@ from reposicion.entrenamiento import entrenar_modelo
 from reposicion.features import construir_features
 from reposicion.fuentes import cargar_fuentes
 from reposicion.modelos.base import cuantiles_requeridos
-from reposicion.parametros import ConfigModelo, ConfigNegocio, ConfigPromocion
-from reposicion.pedido import calcular_pedido
+from reposicion.parametros import ConfigModelo, ConfigNegocio, ConfigPromocion, Configs
 from reposicion.publicacion import pronosticar_corte
 from reposicion.registro import (
     Decision,
@@ -69,51 +68,35 @@ def test_serie_nueva_no_se_trata_como_serie_sin_ventas_hace_un_anio():
 
 
 # --------------------------------------------------- H-CFG-1 cobertura fuera del horizonte
-@pytest.mark.xfail(
-    strict=True, reason="B3: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_cobertura_mas_lead_time_mayor_que_el_horizonte_no_se_trunca_en_silencio():
-    """`business.yaml` acepta `lead_time_dias + cobertura_dias > horizonte_dias`. `calcular_pedido`
-    filtra los días de cobertura que existen en el pronóstico y suma solo esos: con lead time 10 y
-    cobertura 7 (horizonte 14) el pedido cubre 4 días y nadie lo advierte."""
+    """`lead_time_dias + cobertura_dias > horizonte_dias` se rechaza al armar `Configs` (y por
+    tanto al cargar la configuración), con un error claro."""
     negocio = ConfigNegocio.model_validate(
         {"lead_time_dias": 10, "cobertura_dias": 7,
          "grupos": {"default": {"c_quiebre": 1.0, "c_merma": 0.5}}}
     )  # fmt: skip
-    corte = pd.Timestamp("2017-01-02")
-    pron = pd.DataFrame(
-        {
-            "corte": corte,
-            "store_nbr": 1,
-            "family": "A",
-            "fecha_objetivo": pd.date_range(corte, periods=14),
-            "h": range(1, 15),
-            "q0.67": 1.0,
-        }
-    )
-    ped = calcular_pedido(pron, negocio)
-    assert int(ped["pedido"].iloc[0]) == 7, "el pedido suma solo los días dentro del horizonte"
+    modelo = ConfigModelo(cuantiles_reporte=[0.5])
+    with pytest.raises(ValueError, match="horizonte"):
+        Configs(modelo, negocio, None)  # type: ignore[arg-type]
 
 
 # --------------------------------------------------- H-CFG-2 τ que redondea a 0 o a 1
-@pytest.mark.xfail(
-    strict=True, reason="B4: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_tau_redondeado_queda_dentro_de_0_1():
     """`cuantil_critico` redondea a 2 decimales: con c_merma = 0.004 τ = 0.996 → 1.0. La
     configuración se acepta y `cuantiles_requeridos` incluye 1.0 (LightGBM con `alpha=1` y un
     cuantil 1.0 no tienen sentido; los cuantiles de reporte sí se validan en (0, 1))."""
+    with pytest.raises(ValidationError, match="τ"):
+        ConfigNegocio.model_validate({"grupos": {"default": {"c_quiebre": 1.0, "c_merma": 0.004}}})
+    with pytest.raises(ValidationError, match="τ"):
+        ConfigNegocio.model_validate({"grupos": {"default": {"c_quiebre": 0.004, "c_merma": 1.0}}})
     negocio = ConfigNegocio.model_validate(
-        {"grupos": {"default": {"c_quiebre": 1.0, "c_merma": 0.004}}}
+        {"grupos": {"default": {"c_quiebre": 1.0, "c_merma": 0.5}}}
     )
     qs = cuantiles_requeridos(ConfigModelo(cuantiles_reporte=[0.1, 0.5, 0.9]), negocio)
     assert all(0 < q < 1 for q in qs), qs
 
 
 # --------------------------------------------------- H-CFG-3 q0.50 obligatorio pero no validado
-@pytest.mark.xfail(
-    strict=True, reason="B5: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_cuantiles_reporte_sin_mediana_se_rechaza():
     """WAPE, RMSLE, sesgo y el seguimiento leen la columna `q0.50` sin comprobarla, pero
     `ConfigModelo` acepta `cuantiles_reporte: [0.1, 0.9]`; el error aparece tarde (`KeyError`
@@ -132,9 +115,6 @@ def _pred(n_series: int = 2) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
-@pytest.mark.xfail(
-    strict=True, reason="B6: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_checks_tecnicos_detectan_filas_faltantes():
     """`promotion.yaml` documenta `checks_tecnicos: ... filas completas`, pero `checks_tecnicos` no
     verifica que estén todas las (serie, origen, h): un challenger al que le faltan series pasa."""
@@ -142,9 +122,6 @@ def test_checks_tecnicos_detectan_filas_faltantes():
     assert checks_tecnicos(pred) != []
 
 
-@pytest.mark.xfail(
-    strict=True, reason="B6: limitación conocida (ver DECISIONES.md, Limitaciones conocidas)"
-)
 def test_familia_grande_ausente_en_el_challenger_no_permite_promover():
     """En `evaluar_promocion`, si una familia grande del champion no aparece en el challenger su
     costo es NaN y `(nan - c) / c > umbral` es False: la regla por familia la ignora y, sin el

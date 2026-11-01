@@ -6,12 +6,11 @@ comportamiento **correcto** y por eso **falla** hoy.
 
 ## Estado de las correcciones
 
-Los hallazgos **A1–A3 y M1–M6 se corrigieron** (rama `fix/revision`; decisiones, alternativas y
-justificación en `DECISIONES.md` §14) y sus pruebas pasan. **B1–B6 no se corrigen**: sus pruebas
-están marcadas `xfail(strict=True)` y las limitaciones figuran en `DECISIONES.md` ("Limitaciones
-conocidas"). El diagnóstico con datos reales se movió a `tools/diagnostico_corte_2017_01_02.py`
-(el CI no tiene `data/`). El resto de este informe describe el estado de `main` @ `bbe2747`, antes
-de las correcciones.
+Todos los hallazgos están corregidos: **A1–A3 y M1–M6** en la rama `fix/revision` y **B1–B6** en
+`fix/hallazgos-bajos` (decisiones, alternativas y justificación en `DECISIONES.md` §14). Las pruebas
+de `tests/revision/` pasan como pruebas normales (ya no hay `xfail`). El diagnóstico con datos
+reales se movió a `tools/diagnostico_corte_2017_01_02.py` (el CI no tiene `data/`). El resto de este
+informe describe el estado de `main` @ `bbe2747`, antes de las correcciones.
 
 ## Cómo reproducir
 
