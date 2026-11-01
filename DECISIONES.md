@@ -11,7 +11,7 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 | # | Decisión | Estado |
 |---|---|---|
 | 1 | Cadencia semanal y horizonte de 14 días | Aceptada |
-| 2 | Remoto DVC en DagsHub | Aceptada |
+| 2 | Remoto DVC en Cloudflare R2 (lectura pública) | Aceptada (reemplaza a DagsHub) |
 | 3 | Gestión de dependencias con pip + venv | Aceptada |
 | 4 | Flujo Git: `main` protegida, ramas y PRs con CI | Aceptada |
 | 4b | Simulación del sistema de origen (bandeja) y carga histórica | Aceptada |
@@ -38,11 +38,38 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 - **Justificación:** el pedido cubre 7 días, y los 7 restantes dan margen para un lead time
   configurable y para ver la semana siguiente sin cambiar el modelo.
 
-## 2. Remoto DVC en DagsHub
+## 2. Remoto DVC en Cloudflare R2 (lectura pública)
 
-- **Contexto:** el remoto tiene que ser compartido y el equipo docente debe poder hacer `dvc pull`.
-- **Alternativas:** S3/GCS (credenciales y costo), Google Drive (OAuth frágil para terceros).
-- **Decisión:** DagsHub como remoto S3-compatible (`s3://dvc` con endpoint
+- **Contexto:** el remoto tiene que ser compartido y el equipo docente debe poder hacer `dvc pull`
+  **sin crear cuentas**.
+- **Decisión vigente:** bucket `lab-1` de Cloudflare R2 con dos remotos DVC:
+  - `publico` (por defecto): HTTP de solo lectura sobre la URL pública `https://pub-2577176b85834e2f98afc1135b4d03ce.r2.dev`.
+    `dvc pull` y `dvc status -c` funcionan sin credenciales.
+  - `r2`: el mismo bucket por su API S3 (`s3://lab-1`, endpoint
+    `https://e0fa975cebdce4e69404ad9a4f50f091.r2.cloudflarestorage.com`), solo para escribir. Las
+    llaves (token de API de R2 con "Object Read & Write" sobre el bucket) van en `.dvc/config.local`
+    (`tools/dvc_auth.sh`) y, para Airflow, en `.env` (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`);
+    `publicar_remoto` hace `dvc push -r r2` (nombre en `config/operacion.yaml`, `remoto_dvc`).
+- **Justificación:** R2 es gratis hasta 10 GB y no cobra la descarga (egress), así que el costo es $0
+  sin importar cuántas veces se descargue (~0.6 GB por `dvc pull`, 1957 objetos con todo el historial).
+  El remoto HTTP no necesita dependencias extra (`dvc-http` viene con DVC).
+- **Migración:** se copiaron a R2 todos los objetos referenciados por cualquier commit, incluida la
+  rama `publicaciones` (`dvc push -r r2 --all-commits` para `main`; los de `publicaciones` se
+  subieron aparte porque sus árboles no tienen `.dvc/` y DVC no los recorre). Verificado en un clon
+  limpio sin `config.local`: `dvc pull` completo y `dvc status -c` en sincronía con `publico`.
+- **Límite de tasa de r2.dev:** la URL `r2.dev` responde **429 Too Many Requests** tras unos ~600
+  objetos seguidos y DVC no reintenta ese código. El límite dura segundos: `tools/dvc_pull.sh`
+  repite `dvc pull` con pausas de 20 s (cada intento retoma lo que falta) y un clon desde cero
+  termina en ~1–2 min (2–3 intentos). `jobs = 4` en `publico` reduce las ráfagas. Alternativa: un dominio
+  propio conectado al bucket (sin límite de tasa), que exige tener un dominio en Cloudflare.
+- **Alternativas descartadas:** DagsHub (ver abajo); AWS S3/GCS (cobran egress, aunque centavos);
+  Backblaze B2 (equivalente, menos común con DVC); Hugging Face Hub (DVC no puede escribir en él);
+  Google Drive (OAuth incluso para carpetas públicas); token de solo lectura de DagsHub publicado en
+  el repo (expone una credencial).
+
+### Remoto anterior: DagsHub (reemplazado)
+
+- **Decisión original:** DagsHub como remoto S3-compatible (`s3://dvc` con endpoint
   `https://dagshub.com/ManuelMiranda99/motor-reposicion.s3`) ligado al repo de GitHub. Las
   credenciales van solo en `.dvc/config.local` (fuera de git) y se configuran con
   `tools/dvc_auth.sh`.
@@ -51,10 +78,10 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
   repos públicos. Se probó `dvc pull` anónimo desde un clon limpio, por S3 (con
   `allow_anonymous_login`) y por HTTP (`.dvc`), y ambos devuelven 401. Por eso quien evalúe necesita
   una cuenta gratuita de DagsHub y su propio token. Como el repo es público, ese token le da lectura;
-  no hace falta invitarlo como colaborador.
-- **Alternativa descartada:** un bucket S3/R2 con lectura pública permitiría `dvc pull` sin cuenta,
-  pero exige una cuenta cloud con tarjeta y administrar políticas del bucket. Se descartó para
-  mantener la infraestructura mínima.
+  no hace falta invitarlo como colaborador. En noviembre de 2026 DagsHub redirigía al login
+  cualquier acceso anónimo, incluso la exploración de repos públicos de terceros.
+- **Por qué se reemplazó:** exigir una cuenta al docente era una fricción para la evaluación; el
+  bucket público que en su momento se descartó por costo y administración resultó gratis y simple.
 
 ## 3. Gestión de dependencias con pip + venv
 
@@ -445,10 +472,9 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 - **`git_commit` de los manifiestos.** El backfill entregado se corrió con `REPOSICION_GIT_COMMIT` =
   commit de `main` previo a la fase 8 (`e2ed976`), porque el commit de una rama de PR desaparece en
   el squash merge. La fase 8 no cambia la lógica que genera pronósticos (solo agrega `reproducir`).
-- **Acceso del docente a DagsHub (decisión del usuario).** El docente usará **su propia cuenta de
-  DagsHub** y `tools/dvc_auth.sh` (el repo es público, el token solo necesita lectura). No se migra
-  el remoto a un bucket público (ver §2). **Pendiente del usuario:** confirmar con el docente que lo
-  acepta y, si es posible, probar con una cuenta distinta a la del dueño.
+- **Acceso del docente a los datos.** Originalmente el docente iba a usar su propia cuenta de
+  DagsHub. Se migró el remoto a Cloudflare R2 con lectura pública (decisión del usuario, ver §2):
+  el docente hace `./tools/dvc_pull.sh` (o `dvc pull`) sin cuenta ni credenciales.
 - **Estado de datos en `main` (decisión del usuario).** Se commitean los `.dvc` de `data/` del
   final del **backfill completo** 2017-01-02 → 2017-08-14 (histórico, modelos, publicados y
   seguimiento) y se hace `dvc push` de todo, de modo que `dvc pull` trae el estado completo y se puede
@@ -681,4 +707,5 @@ cobertura P10–P90 (`metricas.py` ya lo contempla), y los τ del pedido salen d
 - **Simulador, no la bandeja oficial:** las situaciones operativas son las inyectadas por el
   simulador (`bandeja_sim/_escenarios.csv`); un formato real distinto exige un adaptador en la ingesta
   y `config/sources.yaml`.
-- **DagsHub exige cuenta** para `dvc pull` (ver §2 y §13).
+- **Límite de tasa de r2.dev:** un `dvc pull` en frío puede recibir 429; `tools/dvc_pull.sh`
+  reintenta (ver §2).

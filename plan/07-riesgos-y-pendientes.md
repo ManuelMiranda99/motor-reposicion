@@ -5,8 +5,8 @@
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
 | El formato de la bandeja oficial difiere del simulado | Alto | Un adaptador aislado en `ingest/` + `sources.yaml`; el resto del sistema solo ve el ledger |
-| Los docentes no tienen credenciales de push (DagsHub/GitHub) al correr el flujo | Alto | El push es *best effort* (`push_remoto: auto`): pronostica y versiona localmente, y solo advierte si el push falla |
-| `dvc pull` falla para los docentes | **Crítico** (proyecto "no reproducible") | DagsHub **no** permite lectura anónima (verificado en la fase 1: 401 por S3 y por HTTP). Los docentes necesitan una cuenta de DagsHub y su token (`tools/dvc_auth.sh`, documentado en el README). Confirmar con el equipo docente que lo aceptan y probar en la fase 8 con una cuenta distinta a la del dueño |
+| Los docentes no tienen credenciales de push (R2/GitHub) al correr el flujo | Alto | El push es *best effort* (`push_remoto: auto`): pronostica y versiona localmente, y solo advierte si el push falla |
+| `dvc pull` falla para los docentes | **Crítico** (proyecto "no reproducible") | **Mitigado:** DagsHub no permitía lectura anónima, así que el remoto se migró a Cloudflare R2 con lectura pública (DECISIONES §2). `dvc pull` sin cuenta, verificado en un clon limpio sin credenciales; `tools/dvc_pull.sh` reintenta ante el 429 de r2.dev |
 | Commits desde el contenedor chocan con la protección de `main` | Medio | Commits solo a la rama `publicaciones` |
 | RAM de Docker insuficiente (Airflow + LightGBM sobre 3M filas) | Medio | LocalExecutor, ventana de entrenamiento desde 2015, dtypes compactos (category/float32), ≥ 6 GB para Docker Desktop |
 | Concurrencia en git/DVC durante el backfill | Medio | `max_active_runs=1` + pool `dvc_git` de tamaño 1 |
@@ -21,8 +21,8 @@
 - [ ] Cómo va a "ejecutar el flujo sobre un periodo no publicado": ¿apuntando `BANDEJA_PATH` a otra
       carpeta? ¿agregando archivos a la misma? El README debe cubrir ambos casos.
 - [ ] Fecha límite de entrega (para calendarizar las fases).
-- [ ] Que acepten crear una cuenta gratuita de DagsHub para hacer `dvc pull` (DagsHub no permite
-      lectura anónima). Si no lo aceptan → migrar el remoto a un bucket con lectura pública.
+- [x] ~~Que acepten crear una cuenta gratuita de DagsHub para hacer `dvc pull`~~: ya no aplica, el
+      remoto se migró a Cloudflare R2 con lectura pública (no hace falta cuenta).
 - [ ] Si se aceptan las evidencias como imágenes en git o se prefiere otro formato.
 
 ## Decisiones que quizá te vuelva a preguntar más adelante

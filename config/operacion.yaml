@@ -4,11 +4,13 @@
 inicio: 2017-01-02            # primer corte (lunes) que opera el backfill
 fin: 2017-08-14               # último corte
 # Push de la rama de publicaciones y de los datos (DVC):
-#   auto    → con GITHUB_TOKEN / DAGSHUB_TOKEN hace push; sin ellos, deja un warning y no falla
+#   auto    → con GITHUB_TOKEN / R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY hace push; sin ellos, deja
+#             un warning y no falla
 #   siempre → falla si faltan las credenciales
 #   nunca   → solo commit local
 push_remoto: auto
 rama_publicaciones: publicaciones
+remoto_dvc: r2                # remoto DVC de escritura (S3 de R2); el de lectura es `publico`
 # Subdirectorios de data/ que Airflow versiona con DVC (los que no existen aún se omiten).
 directorios_dvc: [raw, ledger, limpio, backtest, models, published, monitoring]
 autor:

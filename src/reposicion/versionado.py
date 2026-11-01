@@ -9,8 +9,9 @@ ni el árbol de trabajo**:
 2. commit en `refs/heads/publicaciones` con los `.dvc` y `registro/<corte>/<evento>.json`
    (índice temporal con `GIT_INDEX_FILE`; autor, correo y fechas fijos derivados del corte, así el
    mismo contenido da el mismo commit; si el árbol no cambia, no hay commit);
-3. `publicar_remoto`: `dvc push` (con `DAGSHUB_TOKEN`) y `git push` de la rama (con
-   `GITHUB_TOKEN`), según `push_remoto`. Faltar las credenciales **no** es un error en `auto`.
+3. `publicar_remoto`: `dvc push` al remoto de escritura (Cloudflare R2, con `R2_ACCESS_KEY_ID` y
+   `R2_SECRET_ACCESS_KEY`) y `git push` de la rama (con `GITHUB_TOKEN`), según `push_remoto`.
+   Faltar las credenciales **no** es un error en `auto`.
 
 Nunca se usa el reloj: la fecha del commit sale del corte.
 """
@@ -166,15 +167,17 @@ def publicar_remoto(
         log.info("push_remoto=nunca: solo commit local")
         return resultado
 
-    token_dvc = (env.get("DAGSHUB_TOKEN") or env.get("AWS_ACCESS_KEY_ID") or "").strip()
-    if token_dvc:
+    llave = (env.get("R2_ACCESS_KEY_ID") or "").strip()
+    secreto = (env.get("R2_SECRET_ACCESS_KEY") or "").strip()
+    if llave and secreto:
         objetivos = [
             str(d.relative_to(repo)) + ".dvc" for d in _directorios_a_versionar(repo / "data", cfg)
         ]
-        _dvc(["push", *objetivos], repo)
+        dvc_env = {"AWS_ACCESS_KEY_ID": llave, "AWS_SECRET_ACCESS_KEY": secreto}  # S3 de R2
+        _dvc(["push", "-r", cfg.remoto_dvc, *objetivos], repo, dvc_env)
         resultado["dvc"] = "ok"
     else:
-        _sin_credenciales(cfg, "DAGSHUB_TOKEN", "dvc push")
+        _sin_credenciales(cfg, "R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY", "dvc push")
         resultado["dvc"] = "sin credenciales"
 
     token_git = (env.get("GITHUB_TOKEN") or "").strip()
