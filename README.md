@@ -20,16 +20,15 @@ Airflow](#operar-con-airflow) → [Otro periodo u otra bandeja](#otro-periodo-u-
 ## Inicio rápido (evaluación docente)
 
 Probado en un clon limpio (macOS, Docker Desktop con ≥ 6 GB de RAM; ver
-[Ensayo](#ensayo-de-la-evaluación-docente)). Necesitas: Git, Python 3.11, Docker con Compose v2 y una
-cuenta gratuita de DagsHub (para `dvc pull`, ver [Datos](#datos-dvc--dagshub)).
+[Ensayo](#ensayo-de-la-evaluación-docente)). Necesitas: Git, Python 3.11, Docker con Compose v2. No se necesita
+ninguna cuenta: los datos se descargan de un bucket público (ver [Datos](#datos-dvc--cloudflare-r2)).
 
 ```bash
 git clone https://github.com/ManuelMiranda99/motor-reposicion.git && cd motor-reposicion
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -e .
-./tools/dvc_auth.sh                  # pide el token de DagsHub (sin mostrarlo)
-dvc pull                             # entradas + estado entregado (~600 MB, ~1 min)
-cp .env.example .env                 # edita AIRFLOW_UID (el resultado de `id -u`) y, si quieres, los tokens
+./tools/dvc_pull.sh                  # dvc pull con reintentos: entradas + estado entregado (~600 MB, ~1–2 min)
+cp .env.example .env                 # edita AIRFLOW_UID (el resultado de `id -u`)
 docker compose up -d --build         # primera vez: construye la imagen (~3 min)
 ```
 
@@ -42,7 +41,6 @@ Para operar **otra bandeja** (el periodo no publicado) sigue
 - Python 3.11, Git y DVC (se instala con `pip install -r requirements.txt`).
 - Docker con Compose v2 (para Airflow). Docker Desktop: asigna **≥ 6 GB de RAM** (el reentrenamiento de
   LightGBM sobre ~1.3 M filas lo necesita) y 10 GB de disco para la imagen y los datos.
-- Cuenta gratuita de DagsHub para `dvc pull` (ver Datos).
 - Puerto 8080 libre (UI de Airflow).
 - Solo para correr LightGBM **fuera** de Docker en macOS: `brew install libomp`.
 
@@ -55,21 +53,25 @@ pip install -r requirements-dev.txt -e .
 ruff check . && pytest
 ```
 
-## Datos (DVC + DagsHub)
+## Datos (DVC + Cloudflare R2)
 
-Los datos, modelos y pronósticos se versionan con DVC; el remoto es
-[DagsHub](https://dagshub.com/ManuelMiranda99/motor-reposicion). Aunque el repositorio es público,
-**DagsHub exige iniciar sesión para cualquier descarga**, así que se necesita un token (gratis):
-
-1. Crear una cuenta en [dagshub.com](https://dagshub.com) (se puede entrar con GitHub).
-2. Copiar el token en <https://dagshub.com/user/settings/tokens>.
-3. Configurarlo y descargar los datos (el token queda solo en `.dvc/config.local`, fuera de git):
+Los datos, modelos y pronósticos se versionan con DVC en un bucket de Cloudflare R2 con **lectura
+pública**: `dvc pull` no pide cuenta ni credenciales. El remoto por defecto, `publico`, es la URL
+HTTP del bucket (`https://pub-2577176b85834e2f98afc1135b4d03ce.r2.dev`):
 
 ```bash
 source .venv/bin/activate
-./tools/dvc_auth.sh      # pide el token sin mostrarlo en pantalla
-dvc pull
+./tools/dvc_pull.sh      # = dvc pull, con reintentos
 ```
+
+La URL `r2.dev` limita la tasa de peticiones: un `dvc pull` en frío suele cortarse con
+`429 Too Many Requests` tras unos ~600 archivos. No se pierde nada: `tools/dvc_pull.sh` (acepta los
+mismos argumentos que `dvc pull`) reintenta tras 20 s y retoma lo que falta; con `dvc pull` a secas,
+basta volver a correrlo.
+
+Escribir (`dvc push`) es solo para el dueño: usa el remoto `r2` (API S3 del mismo bucket) con las
+llaves de un token de API de R2 en `.dvc/config.local` (`./tools/dvc_auth.sh`):
+`dvc push -r r2`. Ver [DECISIONES §2](DECISIONES.md).
 
 | Ruta | Contenido |
 |---|---|
@@ -83,11 +85,7 @@ dvc pull
 
 `dvc pull` trae **todo el estado entregado**: el backfill completo 2017-01-02 → 2017-08-14, de modo
 que puedes inspeccionar o [reproducir](#reproducir-un-pronóstico-publicado) cualquier corte sin
-reentrenar. Solo las entradas (sin las salidas): `dvc pull data/kaggle.dvc data/historico.dvc bandeja_sim.dvc`.
-
-> **Pendiente de confirmar con el docente:** DagsHub no permite lectura anónima (401), así que la
-> evaluación usa **su propia cuenta de DagsHub** + `./tools/dvc_auth.sh` (el repo de GitHub es público, el
-> token solo necesita lectura). Ver [DECISIONES §2 y §13](DECISIONES.md).
+reentrenar. Solo las entradas (sin las salidas): `./tools/dvc_pull.sh data/kaggle.dvc data/historico.dvc bandeja_sim.dvc`.
 
 ### Regenerar la carga histórica y la bandeja simulada
 
@@ -273,7 +271,8 @@ Tras cada evento (`pronostico`, `modelo`, `seguimiento`) el DAG hace `dvc add` d
 (sin checkout y sin tocar el índice ni tu árbol de trabajo). Repetir un corte es un no-op. Los
 `.dvc` de `data/` sí cambian en tu árbol de trabajo al operar: se commitean a `main` con un PR.
 
-`push_remoto: auto` (`config/operacion.yaml`): con `DAGSHUB_TOKEN` en `.env` se hace `dvc push`; con
+`push_remoto: auto` (`config/operacion.yaml`): con `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` en
+`.env` se hace `dvc push -r r2`; con
 `GITHUB_TOKEN`, `git push` de la rama `publicaciones`. Sin ellos, queda el commit local y un
 warning (no falla). Opciones: `siempre` (falla sin credenciales) y `nunca`.
 
@@ -286,7 +285,7 @@ warning (no falla). Opciones: `siempre` (falla sin credenciales) y `nunca`.
 | `docker/`, `docker-compose.yaml` | Imagen y servicios de Airflow (LocalExecutor) |
 | `config/` | Configuración versionada (costos de negocio, modelo, validación) |
 | `tests/` | Pruebas (pytest); `tests/revision/` son las pruebas de la revisión independiente (ver `INFORME.md` y DECISIONES §14) |
-| `tools/` | Utilidades: `simulate_bandeja.py`, `dvc_auth.sh`, `limpiar_salidas.sh`, `diagnostico_corte_2017_01_02.py` (lee `data/`) |
+| `tools/` | Utilidades: `simulate_bandeja.py`, `dvc_pull.sh`, `dvc_auth.sh`, `limpiar_salidas.sh`, `diagnostico_corte_2017_01_02.py` (lee `data/`) |
 | `reports/` | Evidencias versionadas en git (comparación de modelos, seguimiento, capturas) |
 | `plan/` | Plan de trabajo del laboratorio y `ESTADO.md` |
 | `DECISIONES.md` | Decisiones técnicas y de producto (y limitaciones conocidas) |
@@ -389,8 +388,10 @@ con el reentrenamiento de junio). Resultado: 4 + 4 + 4 + 22 runs en verde, sin i
   documentó cuándo limpiar las salidas; (3) cómo correr dos copias a la vez
   (`COMPOSE_PROJECT_NAME` y puerto); (4) el tamaño real del `dvc pull` (~600 MB, ~1 min) y la
   advertencia de no dejar que la máquina hiberne durante un backfill.
-- No se probó: `dvc pull` con una cuenta de DagsHub distinta de la del dueño (no había otra) ni la
-  construcción de la imagen sin caché (~3 min la primera vez).
+- No se probó la construcción de la imagen sin caché (~3 min la primera vez).
+- Después del ensayo, el remoto pasó de DagsHub a Cloudflare R2 con lectura pública: un clon limpio
+  **sin credenciales** hace `./tools/dvc_pull.sh` completo (~1–2 min, 2–3 intentos por el límite de tasa
+  de r2.dev) y `dvc status -c` queda en sincronía con `publico`.
 
 ### Pruebas
 

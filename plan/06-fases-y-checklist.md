@@ -68,8 +68,8 @@ orientativas para una sola persona.
 - [x] `DECISIONES.md` completo (decisiones 1–13 "Aceptadas" y limitaciones conocidas).
 - [x] Evidencias: `reports/comparacion_modelos.md`, `reports/seguimiento.md` (+ PNG) y las 8
       capturas de Airflow en `reports/evidencia/` (`tools/capturas_airflow.py`, Playwright).
-- [~] Acceso de los docentes: GitHub es público; DagsHub exige cuenta propia del docente +
-      `tools/dvc_auth.sh` (**pendiente confirmarlo con el docente**).
+- [x] Acceso de los docentes sin cuenta: GitHub es público y el remoto DVC se migró de DagsHub a
+      Cloudflare R2 con lectura pública (`./tools/dvc_pull.sh`, verificado en un clon limpio).
 - [ ] `git tag entrega-lab1 && git push origin entrega-lab1` (lo hace el usuario tras revisar).
 
 **Total estimado: ~10 días de trabajo.**

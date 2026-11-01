@@ -34,8 +34,8 @@
 | Cosa | Valor |
 |---|---|
 | GitHub | `ManuelMiranda99/motor-reposicion` (público). `gh` autenticado |
-| DagsHub (remoto DVC) | `s3://dvc`, endpoint `https://dagshub.com/ManuelMiranda99/motor-reposicion.s3` |
-| Credenciales DVC | `.dvc/config.local` (fuera de git), las crea `tools/dvc_auth.sh`. DagsHub **no** permite lectura anónima: con 401, el usuario debe correr el script |
+| Remoto DVC (Cloudflare R2) | `publico` = `https://pub-2577176b85834e2f98afc1135b4d03ce.r2.dev` (HTTP, lectura anónima, por defecto); `r2` = `s3://lab-1` con endpoint `https://e0fa975cebdce4e69404ad9a4f50f091.r2.cloudflarestorage.com` (escritura). Antes: DagsHub |
+| Credenciales DVC | Solo para push: llaves de R2 en `.dvc/config.local` (fuera de git), las crea `tools/dvc_auth.sh`. `dvc pull` es anónimo; usar `tools/dvc_pull.sh` (reintenta ante el 429 de r2.dev) |
 | Python | 3.11 en `.venv` (pip + `requirements*.txt` con `==`) |
 | DVC | `dvc[s3]==3.67.1` (en `requirements.txt`, porque Airflow también lo usará). `core.autostage = true` |
 | CI | `.github/workflows/ci.yml`, job `lint-y-pruebas`: ruff check, ruff format --check, pytest. `ubuntu-24.04`, Python 3.11 |
@@ -61,7 +61,8 @@ src/reposicion/{registro,entrenamiento,publicacion,comparacion}.py  src/reposici
 config/promotion.yaml  reports/comparacion_modelos.md   # fase 5
 tests/sinteticos.py  tests/conftest.py   # fixtures: kaggle_sintetico, config_sintetica, bandeja_sintetica, cfg_fuentes, cfg_validacion
 tools/simulate_bandeja.py         # CLI del simulador
-tools/dvc_auth.sh                 # configura el token de DagsHub
+tools/dvc_auth.sh                 # configura las llaves de escritura de R2 (remoto `r2`)
+tools/dvc_pull.sh                 # dvc pull anónimo con reintentos
 tests/unit/test_package.py
 tests/unit/test_simulador.py      # muestra cómo armar datos sintéticos tipo Kaggle
 data/kaggle.dvc  data/historico.dvc  bandeja_sim.dvc

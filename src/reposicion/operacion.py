@@ -27,6 +27,7 @@ class ConfigOperacion(BaseModel):
     fin: date
     push_remoto: Literal["auto", "siempre", "nunca"] = "auto"
     rama_publicaciones: str = "publicaciones"
+    remoto_dvc: str = "r2"
     directorios_dvc: list[str]
     autor: Autor
 

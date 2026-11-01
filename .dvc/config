@@ -1,6 +1,10 @@
 [core]
     autostage = false
-    remote = origin
-['remote "origin"']
-    url = s3://dvc
-    endpointurl = https://dagshub.com/ManuelMiranda99/motor-reposicion.s3
+    remote = publico
+['remote "r2"']
+    url = s3://lab-1
+    endpointurl = https://e0fa975cebdce4e69404ad9a4f50f091.r2.cloudflarestorage.com
+    region = auto
+['remote "publico"']
+    url = https://pub-2577176b85834e2f98afc1135b4d03ce.r2.dev
+    jobs = 4

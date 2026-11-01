@@ -23,7 +23,7 @@ archivo se escribirá a partir de lo que se defina aquí.
   2. un **pedido sugerido** (newsvendor), con costos de quiebre y de merma en `config/business.yaml`;
   3. un **reporte de desempeño** de los pronósticos ya publicados contra las ventas reales que van llegando.
 - **Stack:** Python 3.11 · pip + `requirements.txt` en `.venv` · pandas/pyarrow · pandera · LightGBM ·
-  pytest · Airflow 3 (Docker Compose, LocalExecutor) · DVC con remoto en **DagsHub** · GitHub Actions.
+  pytest · Airflow 3 (Docker Compose, LocalExecutor) · DVC con remoto en **Cloudflare R2** (antes DagsHub) · GitHub Actions.
 - **Regla de oro:** toda la lógica vive en `src/reposicion/`, con pruebas, y los DAGs solo orquestan.
   Toda lectura de datos pasa por una función *as-of* que solo ve lo que ya había llegado en la fecha
   de corte.

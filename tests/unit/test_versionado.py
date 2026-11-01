@@ -136,19 +136,19 @@ def test_sin_salidas_solo_deja_el_registro(tmp_path, cfg, monkeypatch):
 def test_sin_credenciales_en_auto_no_falla(repo, cfg, caplog, llamadas):
     res = publicar_remoto(repo, cfg, env={})
     assert res == {"dvc": "sin credenciales", "git": "sin credenciales"}
-    assert "GITHUB_TOKEN" in caplog.text and "DAGSHUB_TOKEN" in caplog.text
+    assert "GITHUB_TOKEN" in caplog.text and "R2_ACCESS_KEY_ID" in caplog.text
     assert not llamadas
 
 
 def test_sin_credenciales_con_siempre_falla(repo, cfg):
     cfg_siempre = cfg.model_copy(update={"push_remoto": "siempre"})
-    with pytest.raises(ErrorVersionado, match="DAGSHUB_TOKEN"):
+    with pytest.raises(ErrorVersionado, match="R2_ACCESS_KEY_ID"):
         publicar_remoto(repo, cfg_siempre, env={})
 
 
 def test_nunca_no_hace_push_aunque_haya_tokens(repo, cfg, llamadas):
     cfg_nunca = cfg.model_copy(update={"push_remoto": "nunca"})
-    env = {"DAGSHUB_TOKEN": "x", "GITHUB_TOKEN": "y"}
+    env = {"R2_ACCESS_KEY_ID": "x", "R2_SECRET_ACCESS_KEY": "z", "GITHUB_TOKEN": "y"}
     assert publicar_remoto(repo, cfg_nunca, env=env) == {"dvc": "omitido", "git": "omitido"}
     assert not llamadas
 
@@ -157,10 +157,17 @@ def test_push_de_dvc_solo_con_su_token(repo, cfg, llamadas):
     """Con tokens: `dvc push` de los .dvc y `git push` de la rama a un remoto local."""
     versionar("pronostico", CORTE, repo, cfg, {"x": 1})
     # Solo hay token de DVC: el push de git (por https, con GITHUB_TOKEN) no se prueba aquí.
-    res = publicar_remoto(repo, cfg, env={"DAGSHUB_TOKEN": "token"})
+    res = publicar_remoto(repo, cfg, env={"R2_ACCESS_KEY_ID": "k", "R2_SECRET_ACCESS_KEY": "s"})
     assert res["dvc"] == "ok" and res["git"] == "sin credenciales"
-    assert llamadas[-1][0] == "push"
+    assert llamadas[-1][:3] == ["push", "-r", "r2"]
     assert "data/ledger.dvc" in llamadas[-1]
+
+
+def test_push_de_dvc_necesita_llave_y_secreto(repo, cfg, llamadas):
+    """Solo una de las dos llaves de R2 cuenta como sin credenciales (no se intenta el push)."""
+    res = publicar_remoto(repo, cfg, env={"R2_ACCESS_KEY_ID": "k"})
+    assert res["dvc"] == "sin credenciales"
+    assert not llamadas
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@
 
 | # | Tema | Decisión | Alternativas descartadas | Motivo |
 |---|---|---|---|---|
-| D1 | Remoto DVC | **DagsHub** (S3-compatible, ligado al repo). Los docentes necesitan una cuenta y su token porque no hay lectura anónima | S3/GCS, Google Drive | Infraestructura mínima; Drive suele fallar con OAuth |
+| D1 | Remoto DVC | **DagsHub** (S3-compatible, ligado al repo). Los docentes necesitan una cuenta y su token porque no hay lectura anónima. **Reemplazado** por Cloudflare R2 con lectura pública (DECISIONES §2) | S3/GCS, Google Drive | Infraestructura mínima; Drive suele fallar con OAuth |
 | D2 | Cadencia / horizonte | **Corte semanal (lunes), horizonte 14 días** | 7 o 16 días | 7 días de cobertura del pedido + margen para el lead time |
 | D3 | Modelo ML | **LightGBM global por cuantiles** | statsforecast, deep learning | Rápido en CPU, estándar para este dataset, da cuantiles nativos |
 | D4 | Bandeja | **Simulador propio** mientras llega la oficial | — | No bloquear el desarrollo; luego solo se adapta el lector |

@@ -2,7 +2,7 @@
 
 Motor de reposición de inventario (Lab 1, Product Development). Transforma datos de ventas que llegan
 diariamente en un pronóstico por cuantiles y un pedido sugerido semanal por tienda × familia, y hace
-seguimiento del desempeño. Stack: Python 3.11, pip + venv, Git, DVC (remoto DagsHub), Airflow 3 en
+seguimiento del desempeño. Stack: Python 3.11, pip + venv, Git, DVC (remoto Cloudflare R2, lectura pública), Airflow 3 en
 Docker Compose, pytest + GitHub Actions. El plan detallado está en `plan/` y el avance en
 `plan/ESTADO.md`. Para continuar con la siguiente fase usa la skill `lab1-fases`
 (`.claude/skills/lab1-fases/`), que tiene la especificación detallada de las fases 3 a 8.
@@ -19,8 +19,9 @@ pytest                                  # pruebas
 ### Datos (DVC)
 
 ```bash
-./tools/dvc_auth.sh && dvc pull         # token de DagsHub (.dvc/config.local, fuera de git)
-dvc add data/<dir> && dvc push          # tras cambiar datos versionados; commitea los .dvc
+./tools/dvc_pull.sh                     # dvc pull anónimo (remoto `publico`) con reintentos (429 de r2.dev)
+./tools/dvc_auth.sh                     # solo para push: llaves de R2 en .dvc/config.local (fuera de git)
+dvc add data/<dir> && dvc push -r r2    # tras cambiar datos versionados; commitea los .dvc
 ./tools/limpiar_salidas.sh              # borra salidas regenerables de data/ (no kaggle/historico)
 ```
 
