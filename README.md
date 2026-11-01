@@ -341,7 +341,7 @@ python -m reposicion.cli reproducir --corte 2017-02-06 --rev 2    # una revisió
 |---|---|
 | Baseline vs. LightGBM (backtest, decisión de promoción) | [`reports/comparacion_modelos.md`](reports/comparacion_modelos.md) |
 | Seguimiento final del desempeño (métricas por corte, familia y horizonte, alertas) | [`reports/seguimiento.md`](reports/seguimiento.md) |
-| Capturas de la UI de Airflow (Grid, cuarentena, revisión por corrección) | [`reports/evidencia/`](reports/evidencia/README.md) |
+| Capturas de la UI de Airflow: [DAGs](reports/evidencia/01_dags.png), Grid ([ingesta](reports/evidencia/02_grid_ingesta_validacion.png), [entrenamiento](reports/evidencia/03_grid_entrenamiento.png), [pronóstico](reports/evidencia/04_grid_pronostico_semanal.png), [seguimiento](reports/evidencia/05_grid_seguimiento_desempeno.png)), [cuarentena](reports/evidencia/06_cuarentena.png), [revisión por corrección](reports/evidencia/07_revision_por_correccion.png), [corte degradado](reports/evidencia/08_corte_degradado.png) | [`reports/evidencia/`](reports/evidencia/README.md) (`python tools/capturas_airflow.py`) |
 | Decisiones y limitaciones | [`DECISIONES.md`](DECISIONES.md) |
 | Registro de cada evento semanal/mensual | rama `publicaciones` |
 
