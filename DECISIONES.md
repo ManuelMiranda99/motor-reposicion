@@ -479,8 +479,8 @@ el seguimiento y las revisiones, y la §13 con la entrega. Al final están las
 ## 14. Correcciones de la revisión independiente
 
 Una revisión adversarial del código (`tests/revision/INFORME.md`, sobre `main` @ `bbe2747`) dejó 19
-pruebas que fallaban a propósito. Se corrigieron los hallazgos de severidad alta y media; los bajos
-(B1–B6) quedan como limitaciones conocidas con su prueba marcada `xfail(strict=True)`. Las pruebas
+pruebas que fallaban a propósito. Se corrigieron los hallazgos de severidad alta y media en la
+primera ronda y los bajos (B1–B6) en una segunda (ver al final de esta sección). Las pruebas
 viven en `tests/revision/` (el script de diagnóstico con datos reales, que el CI no puede correr,
 pasó a `tools/diagnostico_corte_2017_01_02.py`).
 
@@ -605,6 +605,58 @@ Con la bandeja entregada A1 no cambia ningún resultado: las reentregas (05-12, 
 antes del lunes siguiente, así que ningún corte publicado las echó en falta; se prueba con escenarios
 sintéticos en otras fechas. `reproducir` da REPRODUCIDO en 6 publicaciones (3 `rev=1`, 3 revisiones).
 
+### Segunda ronda: hallazgos bajos B1–B6 (rama `fix/hallazgos-bajos`)
+
+Todos se corrigieron y sus pruebas dejaron de ser `xfail`. Ninguna cambia un resultado de la bandeja
+entregada (se verificó re-ingestando, reemitiendo revisiones y reproduciendo; ver `plan/ESTADO.md`).
+
+**B1 — feriados corregidos o tardíos no marcaban los cortes cuya vista adelante cambia.**
+- *Alternativas:* (a) ampliar para todas las fuentes el alcance hacia adelante; (b) regla propia de
+  las fuentes de calendario; (c) añadir un parámetro de alcance a `cortes_afectados`.
+- *Decisión:* (b). `correcciones.FUENTES_CALENDARIO = {"feriados": TOPE_DIAS_FERIADO}` (la misma
+  constante de `features.py`, así no hay dos números que mantener). Un archivo de feriados cubre un
+  trimestre desde `fecha_dato`: el corte P se marca si ese trimestre se cruza con
+  `[P - ventana_features, P + horizonte - 1 + TOPE_DIAS_FERIADO]` (ventana y horizonte salen de
+  `model.yaml`). `TOPE_DIAS_FERIADO` es una constante del código de features, no un parámetro de
+  YAML: moverla a config cambiaría los modelos entrenados.
+- *Costo:* más revisiones posibles si un archivo de feriados se corrige; hoy ninguno lo hace.
+
+**B2 — la versión vigente dependía del orden de ingesta.**
+- *Alternativas:* (a) renumerar `version` por fecha de entrega (rompe versiones ya escritas y la
+  huella de publicaciones); (b) ignorar archivos en carpetas anteriores a la última ingesta (pierde
+  datos); (c) elegir la vigente por `(fecha_disponible, version)` sin tocar la numeración.
+- *Decisión:* (c). `asof` toma por `fecha_dato` la fila de mayor `fecha_disponible` y, en empate, la
+  de mayor `version`; `ingesta` calcula la vigente (detección de duplicados) con el mismo orden y
+  numera `version` como `max(version) + 1` por orden de ingesta. Con entregas en orden ambos
+  criterios coinciden, por eso los datos entregados no cambian.
+
+**B3 — `lead_time + cobertura > horizonte` truncaba el pedido.**
+- *Alternativas:* validar en `calcular_pedido`; validar en la configuración.
+- *Decisión:* validar al armar `Configs` (`__post_init__`, por lo tanto en `cargar_configs`) con un
+  error claro. En `calcular_pedido` no se valida: el backtest descarta las filas sin venta real (por
+  ejemplo el 25-dic) antes de calcular el pedido y una comprobación ahí daría falsos positivos.
+
+**B4 — τ redondeado a 0 o 1.** `cuantil_critico` se movió a `parametros.py` (se reexporta desde
+`pedido.py`) y `GrupoCosto` rechaza una pareja de costos cuyo τ redondeado no quede en (0, 1).
+Alternativa descartada: no redondear (rompe que el modelo se entrene exactamente en el cuantil del
+pedido).
+
+**B5 — la mediana es obligatoria.** `ConfigModelo` exige `0.5` en `cuantiles_reporte` (constante
+`parametros.MEDIANA`). Los cuantiles 0.1 y 0.9 siguen siendo opcionales: sin ellos solo se omite la
+cobertura P10–P90 (`metricas.py` ya lo contempla), y los τ del pedido salen de los costos.
+
+**B6 — checks técnicos y familias ausentes.**
+- `checks_tecnicos` verifica que cada (serie, origen) tenga todos los horizontes 1..H. Primera
+  versión descartada: exigir el producto cartesiano series × orígenes × horizontes daba un falso
+  positivo en los backtests reales de los cortes 05-01 y 06-05, porque una tienda nueva no existe en
+  los orígenes viejos.
+- `evaluar_promocion`: una familia grande del champion ausente en el challenger cuenta como falla
+  ("ausente en el challenger"), ya no como `NaN > umbral` = falso.
+- *Límite conocido:* una serie completa ausente en un origen no se detecta por sí sola (sí si es una
+  familia grande).
+- No se movió `COBERTURA_NOMINAL = 0.80` (solo dibuja la línea del gráfico y está ligada al nombre
+  P10–P90 en reportes): moverla a config no aporta sin parametrizar también esos nombres.
+
 ## Limitaciones conocidas
 
 - **Ventas censuradas:** `sales` es la demanda observada, censurada por quiebres de stock (no hay
@@ -630,23 +682,3 @@ sintéticos en otras fechas. `reproducir` da REPRODUCIDO en 6 publicaciones (3 `
   simulador (`bandeja_sim/_escenarios.csv`); un formato real distinto exige un adaptador en la ingesta
   y `config/sources.yaml`.
 - **DagsHub exige cuenta** para `dvc pull` (ver §2 y §13).
-- **B1 — feriados corregidos o tardíos:** la corrección o llegada tardía de un archivo trimestral de
-  feriados no marca los cortes cuya vista hacia adelante (hasta 30 días más allá del horizonte)
-  cambia, porque `fecha_dato` de un feriado es el inicio del trimestre. No se corrige: en la
-  práctica los feriados llegan un trimestre antes y no se corrigen. Prueba `xfail`:
-  `tests/revision/test_revisiones.py`.
-- **B2 — versión vigente por orden de ingesta:** la versión de un archivo se asigna por el orden en
-  que se ingiere, no por su fecha de entrega. Solo importa si un archivo aparece tarde en una
-  carpeta de entrega antigua (la bandeja es append-only por contrato). Prueba `xfail`.
-- **B3 — `lead_time + cobertura > horizonte`:** el pedido se trunca en silencio a los días que
-  existen en el pronóstico; no se valida la combinación en la configuración. Prueba `xfail`.
-- **B4 — τ redondeado a 0 o 1:** con `c_merma` extremo (< 0.005) el cuantil crítico redondea a 1.0
-  y no se rechaza la configuración. Prueba `xfail`.
-- **B5 — la mediana es obligatoria pero no se valida:** `cuantiles_reporte` sin 0.5 falla tarde
-  (`KeyError: 'q0.50'`). Prueba `xfail`.
-- **B6 — checks técnicos del criterio de reemplazo:** no verifican "filas completas" y una familia
-  ausente del challenger no bloquea la promoción. Hoy no ocurre porque champion y challenger se
-  evalúan sobre la misma matriz. Pruebas `xfail`.
-
-Las pruebas `xfail(strict=True)` de B1–B6 documentan cada limitación: si alguien la corrige, la
-prueba empieza a pasar y falla hasta quitarle la marca.

@@ -143,3 +143,12 @@ def test_champion_con_misma_fecha_gana_el_promovido_despues(tmp_path):
 def test_cargar_modelo_inexistente(tmp_path):
     with pytest.raises(FileNotFoundError):
         cargar_modelo("lgbm-2017-01-02-deadbeef", tmp_path)
+
+
+def test_familia_grande_ausente_en_el_challenger_bloquea_la_promocion():
+    from reposicion.registro import ResumenEvaluacion, evaluar_promocion
+
+    champ = ResumenEvaluacion(100.0, 0.2, 0.8, 0.9, familias={"A": (900.0, 60.0), "B": (50.0, 4.0)})
+    chall = ResumenEvaluacion(50.0, 0.19, 0.8, 0.9, familias={"B": (50.0, 4.0)})
+    d = evaluar_promocion(chall, champ, ConfigPromocion())
+    assert not d.promover and any("ausente en el challenger" in m for m in d.motivos)

@@ -219,10 +219,22 @@ def ingestar(
 
     familias = set(leer_texto(dir_data / "historico" / "ventas.csv")["family"].unique())
     maestros = _maestros_iniciales(dir_data, ledger)
-    # Última versión válida por (fuente, fecha_dato): (versión, sha256, filas).
-    vigentes: dict[tuple[str, date], tuple[int, str, int]] = {}
-    for f in ledger[ledger["estado"] == "valido"].sort_values("version").itertuples():
-        vigentes[(f.fuente, f.fecha_dato.date())] = (int(f.version), f.sha256, int(f.filas))
+    # Versión válida vigente por (fuente, fecha_dato): (versión, sha256, filas, entrega), la de
+    # mayor fecha de entrega (desempate por versión), igual que `asof`. `ultima_version` lleva la
+    # numeración por orden de ingesta, que no depende de cuál sea la vigente.
+    vigentes: dict[tuple[str, date], tuple[int, str, int, date]] = {}
+    ultima_version: dict[tuple[str, date], int] = {}
+    ordenado = ledger[ledger["estado"] == "valido"].sort_values(["fecha_entrega", "version"])
+    for f in ordenado.itertuples():
+        vigentes[(f.fuente, f.fecha_dato.date())] = (
+            int(f.version),
+            f.sha256,
+            int(f.filas),
+            f.fecha_entrega.date(),
+        )
+    for f in ordenado.itertuples():
+        llave = (f.fuente, f.fecha_dato.date())
+        ultima_version[llave] = max(ultima_version.get(llave, 0), int(f.version))
 
     filas_nuevas = []
     for a in nuevos:
@@ -244,10 +256,19 @@ def ingestar(
                 resumen.cuarentena += 1
             else:
                 estado = "valido"
-                version = 1 if vigente is None else vigente[0] + 1
+                version = ultima_version.get((a.fuente, a.fecha_dato), 0) + 1
                 es_corr = vigente is not None
                 es_tard = vigente is None and _es_tardio(fcfg, a.fecha_dato, a.fecha_entrega)
-                vigentes[(a.fuente, a.fecha_dato)] = (version, a.sha256, filas)
+                ultima_version[(a.fuente, a.fecha_dato)] = version
+                # `nuevos` va ordenado por entrega, pero una carpeta antigua que aparece tarde
+                # puede traer un archivo anterior al vigente: no lo desplaza.
+                if vigente is None or a.fecha_entrega >= vigente[3]:
+                    vigentes[(a.fuente, a.fecha_dato)] = (
+                        version,
+                        a.sha256,
+                        filas,
+                        a.fecha_entrega,
+                    )
                 resumen.validos += 1
                 etiqueta = f"{a.fuente} {a.fecha_dato} (entrega {a.fecha_entrega})"
                 if es_corr:

@@ -13,6 +13,8 @@ from reposicion.config import cargar_yaml
 from reposicion.fuentes import ConfigFuentes, cargar_fuentes
 from reposicion.validacion import ConfigValidacion, cargar_validacion
 
+MEDIANA = 0.5  # cuantil de la predicción puntual (WAPE, RMSLE, sesgo)
+
 
 class ConfigBacktest(BaseModel):
     n_origenes: int = Field(8, ge=1)
@@ -67,6 +69,11 @@ class ConfigModelo(BaseModel):
     def _cuantiles_validos(self) -> ConfigModelo:
         if not self.cuantiles_reporte or any(not 0 < q < 1 for q in self.cuantiles_reporte):
             raise ValueError("cuantiles_reporte debe tener valores en (0, 1)")
+        if not any(abs(q - MEDIANA) < 1e-9 for q in self.cuantiles_reporte):
+            raise ValueError(
+                f"cuantiles_reporte debe incluir la mediana {MEDIANA}: WAPE, RMSLE, sesgo y el "
+                "seguimiento se calculan sobre q0.50"
+            )
         for d in self.dias_sin_operacion:
             try:
                 datetime.strptime(f"2000-{d}", "%Y-%m-%d")
@@ -75,10 +82,28 @@ class ConfigModelo(BaseModel):
         return self
 
 
+def cuantil_critico(c_quiebre: float, c_merma: float) -> float:
+    """τ = c_quiebre / (c_quiebre + c_merma), redondeado a 2 decimales.
+
+    El redondeo hace que el modelo se entrene exactamente en el cuantil que usa el pedido.
+    """
+    return round(c_quiebre / (c_quiebre + c_merma), 2)
+
+
 class GrupoCosto(BaseModel):
     c_quiebre: float = Field(gt=0)
     c_merma: float = Field(gt=0)
     familias: list[str] = []
+
+    @model_validator(mode="after")
+    def _tau_valido(self) -> GrupoCosto:
+        tau = cuantil_critico(self.c_quiebre, self.c_merma)
+        if not 0 < tau < 1:
+            raise ValueError(
+                f"c_quiebre={self.c_quiebre} y c_merma={self.c_merma} dan un cuantil crítico "
+                f"τ={tau} tras el redondeo a 2 decimales; debe quedar en (0, 1)"
+            )
+        return self
 
 
 class ConfigNegocio(BaseModel):
@@ -140,6 +165,17 @@ class Configs:
     validacion: ConfigValidacion = field(default_factory=ConfigValidacion)
     promocion: ConfigPromocion = field(default_factory=ConfigPromocion)
     monitoreo: ConfigMonitoreo = field(default_factory=ConfigMonitoreo)
+
+    def __post_init__(self) -> None:
+        # La cobertura del pedido debe caber en el horizonte pronosticado; si no, el pedido
+        # se truncaría en silencio.
+        n = self.negocio
+        if n.lead_time_dias + n.cobertura_dias > self.modelo.horizonte_dias:
+            raise ValueError(
+                f"lead_time_dias ({n.lead_time_dias}) + cobertura_dias ({n.cobertura_dias}) "
+                f"supera horizonte_dias ({self.modelo.horizonte_dias}): el pedido no cabría "
+                "en el pronóstico"
+            )
 
 
 def cargar_modelo(ruta: str | Path) -> ConfigModelo:

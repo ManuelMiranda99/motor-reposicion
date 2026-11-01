@@ -73,3 +73,16 @@ def test_llegada_fuera_de_plazo_solo_afecta_a_los_cortes_que_la_habrian_usado():
     # una corrección conserva la regla conservadora
     corr = tardio.assign(es_correccion=True, es_tardio=False)
     assert cortes_afectados(corr, cortes, 14, 364, {"ventas": 1}) == cortes
+
+
+def test_feriados_solo_afectan_cortes_cuya_vista_adelante_toca_el_trimestre():
+    corr = pd.DataFrame(
+        {
+            "fuente": ["feriados"],
+            "fecha_dato": [pd.Timestamp("2017-04-01")],
+            "fecha_entrega": [pd.Timestamp("2017-03-08")],
+        }
+    )
+    cortes = [date(2017, 1, 2), date(2017, 3, 6)]
+    # El 01-02 mira hasta 01-15 + 30 días: no llega al 2º trimestre; el 03-06 sí (03-19 + 30).
+    assert cortes_afectados(corr, cortes, 14, 364) == [date(2017, 3, 6)]

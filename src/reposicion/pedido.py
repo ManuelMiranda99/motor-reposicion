@@ -8,17 +8,11 @@ import numpy as np
 import pandas as pd
 
 from reposicion.modelos.base import cuantil_de_nombre, nombre_cuantil
-from reposicion.parametros import ConfigNegocio
+from reposicion.parametros import ConfigNegocio, cuantil_critico
+
+__all__ = ["calcular_pedido", "cuantil_critico", "grupo_de_familia"]
 
 log = logging.getLogger(__name__)
-
-
-def cuantil_critico(c_quiebre: float, c_merma: float) -> float:
-    """τ = c_quiebre / (c_quiebre + c_merma), redondeado a 2 decimales.
-
-    El redondeo hace que el modelo se entrene exactamente en el cuantil que usa el pedido.
-    """
-    return round(c_quiebre / (c_quiebre + c_merma), 2)
 
 
 def grupo_de_familia(family: str, cfg_negocio: ConfigNegocio) -> str:

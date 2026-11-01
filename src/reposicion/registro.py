@@ -75,6 +75,15 @@ def checks_tecnicos(pred: pd.DataFrame) -> list[str]:
         problemas.append("hay cuantiles no monótonos")
     if pred.duplicated(["store_nbr", "family", "origen", "h"]).any():
         problemas.append("hay filas duplicadas por (serie, origen, h)")
+    # Filas completas: cada (serie, origen) trae todos los horizontes 1..H. No se exige el
+    # producto cartesiano con los orígenes: una serie nueva no existe en los orígenes viejos.
+    horizontes = pred.groupby(["store_nbr", "family", "origen"], observed=True)["h"].nunique()
+    incompletas = int((horizontes != int(pred["h"].max())).sum())
+    if incompletas:
+        problemas.append(
+            f"filas incompletas: {incompletas} de {len(horizontes)} (serie, origen) sin todos "
+            "los horizontes"
+        )
     return problemas
 
 
@@ -122,7 +131,10 @@ def evaluar_promocion(
     for familia, (volumen, costo_champ) in sorted(m_champion.familias.items()):
         if volumen / total <= cfg.familia_volumen_min or costo_champ <= 0:
             continue
-        costo_chall = m_challenger.familias.get(familia, (volumen, float("nan")))[1]
+        if familia not in m_challenger.familias:
+            malas.append(f"{familia} (ausente en el challenger)")
+            continue
+        costo_chall = m_challenger.familias[familia][1]
         if (costo_chall - costo_champ) / costo_champ > cfg.familia_costo_empeora_max:
             malas.append(f"{familia} ({(costo_chall - costo_champ) / costo_champ:+.1%})")
     if malas:

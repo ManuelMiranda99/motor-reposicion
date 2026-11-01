@@ -392,5 +392,18 @@ Contratos que cambiaron (detalle y alternativas en DECISIONES §14):
   `publicacion.revisiones_publicadas` / `cortes_con_publicacion` ignoran `rev=N.tmp`.
 - **Revisiones:** `revisiones.asegurar_publicaciones(cortes, dir_data, cfgs, preparar)` y
   `orquestacion.asegurar_publicaciones(corte, dir_data, bandeja, config, inicio)`.
-- **Pruebas:** `tests/revision/` (A*/M* verdes; B1–B6 `xfail(strict=True)`); el diagnóstico con
+- **Pruebas:** `tests/revision/` (todas verdes; ya no hay `xfail`); el diagnóstico con
   datos reales está en `tools/diagnostico_corte_2017_01_02.py`.
+
+## 15. Hallazgos bajos B1–B6 (rama `fix/hallazgos-bajos`)
+
+Contratos que cambiaron (detalle en DECISIONES §14, "Segunda ronda"):
+
+- **`asof`:** la versión vigente por `fecha_dato` es la de mayor `(fecha_disponible, version)`;
+  `version` sigue numerando el orden de ingesta (`max + 1`).
+- **`parametros`:** `cuantil_critico` vive aquí (`pedido` lo reexporta); `GrupoCosto` exige τ
+  redondeado en (0, 1); `ConfigModelo` exige la mediana (`MEDIANA = 0.5`); `Configs.__post_init__`
+  exige `lead_time + cobertura <= horizonte`.
+- **`correcciones.FUENTES_CALENDARIO`:** alcance hacia adelante de `feriados` (`TOPE_DIAS_FERIADO`).
+- **`registro.checks_tecnicos`:** "filas completas" = cada (serie, origen) con todos los h; una
+  familia grande ausente en el challenger bloquea la promoción.
